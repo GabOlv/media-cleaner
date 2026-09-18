@@ -1,0 +1,71 @@
+# MediaCleaner
+
+Revisão local de fotos, vídeos e áudios para liberar espaço no aparelho. Sem conta, anúncios ou backend.
+
+## Uso
+
+Inicie a revisão para buscar mídias antigas e decidir, uma por vez, o que manter ou excluir. A quantidade padrão é de até 10 arquivos por dia, conforme a data local. Bibliotecas menores podem retornar menos arquivos. O histórico e as preferências ficam no aparelho; arquivos já revisados não reaparecem.
+
+Em Pastas, adicione exclusões para proteger arquivos. Proteger uma pasta também cobre suas subpastas. A lista disponível depende do que a biblioteca do sistema permite acessar. Quando há exclusões, arquivos sem caminho identificável ficam fora da revisão.
+
+Em Ajustes, configure a quantidade diária, os tipos de mídia e o lembrete local. Alterações de quantidade após iniciar a revisão valem no próximo dia. O lembrete não faz varreduras em segundo plano; a busca ocorre ao iniciar a revisão. A economia de bateria pode atrasar notificações.
+
+A demonstração usa ilustrações locais e progresso temporário, separado dos dados reais. Não exclui arquivos do aparelho nem precisa de rede. No navegador e no Expo Go, use esse modo para experimentar a interface.
+
+## Executar
+
+Requisitos: Node.js 22.13+ e npm. Projeto com Expo SDK 57 e React Native 0.86; consulte a [documentação versionada do Expo](https://docs.expo.dev/versions/v57.0.0/).
+
+```sh
+npm install
+```
+
+Para acessar a biblioteca real no Android, é necessária uma build nativa de desenvolvimento:
+
+```sh
+npx expo run:android
+```
+
+Esse comando exige Android SDK, Java e dispositivo ou emulador configurados. Nas próximas sessões, inicie o servidor com `npm start` e abra o aplicativo próprio instalado.
+
+No Android, o módulo `expo-media-library` instalado rejeita pedidos de acesso a fotos ou vídeos dentro do Expo Go e orienta criar uma development build. Use o Expo Go somente para demonstração. Alterar `app.json` não altera o manifesto nativo do Expo Go, que já vem compilado. Mudanças em permissões, ícones ou plugins nativos exigem recompilar o aplicativo próprio.
+
+Para abrir a demonstração no navegador:
+
+```sh
+npm run web -- --port 8091
+```
+
+## Permissões e limites
+
+O plugin `expo-media-library` declara explicitamente `granularPermissions: ["photo", "video", "audio"]` e `isAccessMediaLocationEnabled: false`. As permissões concedidas pelo usuário e as restrições do sistema determinam quais arquivos ficam disponíveis. Veja a [referência de MediaLibrary do SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/media-library/).
+
+A biblioteca do sistema não representa acesso irrestrito ao armazenamento. Pastas vazias, arquivos privados de outros aplicativos e mídias não autorizadas podem não aparecer. O foco é Android; caminhos, álbuns, permissões e exclusões no iOS precisam de validação em aparelho. O navegador não oferece acesso à biblioteca nativa nem aos lembretes locais do aplicativo.
+
+A exclusão exige confirmação e só é registrada após sucesso informado pelo sistema. Cancelamento ou falha mantém o arquivo pendente. Não há lixeira própria nem garantia de desfazer uma exclusão concluída. O espaço recuperado soma apenas tamanhos conhecidos.
+
+Preferências e IDs reais revisados de versões anteriores são importados; dados fictícios não são. Regras antigas de caminhos são preservadas para revisão. Quando necessário, selecione novamente as pastas reais ou remova as regras antigas antes da primeira busca. Os dados antigos no armazenamento não são apagados.
+
+## Verificação e marca
+
+```sh
+npm run typecheck
+npm test
+npm run test:ui
+npx expo-doctor
+npx expo export --platform android --output-dir artifacts/android
+```
+
+Os testes de interface usam Playwright e esperam o servidor web em `http://localhost:8091`. As capturas ficam em `artifacts/`. Testes simulados não substituem verificar permissões, exclusão real e notificações em uma build nativa no Android.
+
+A marca original é um arquivo geométrico com recorte, em azul discreto sobre superfícies neutras. A fonte vetorial está em `assets/media-cleaner.svg`. O PNG `media-cleaner.png` tem fundo opaco `#F8FAFC` e serve ao ícone padrão, splash e favicon. O Android usa `media-cleaner-adaptive.png` como camada de primeiro plano transparente. Para regenerar os dois PNGs de 1024 × 1024:
+
+```sh
+node scripts/render-icon.cjs
+```
+
+O script usa o Chromium do Playwright; se necessário, instale-o com `npx playwright install chromium`.
+
+## Licença
+
+MIT. Código e ilustrações originais seguem a licença do projeto. Permanecem os créditos de Gabriel, dos demais contribuidores e os avisos do template Expo e das dependências.

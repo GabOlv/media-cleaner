@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local verification artifacts and pre-rewrite recovery bundle
+legacy-before-bipo.zip
+artifacts/
+bipo-home.png

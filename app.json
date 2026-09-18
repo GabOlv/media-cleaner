@@ -1,25 +1,58 @@
 {
   "expo": {
-    "name": "media-cleaner",
+    "name": "MediaCleaner",
     "slug": "media-cleaner",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/media-cleaner.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.gabriel.mediacleaner",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F8FAFC",
+        "foregroundImage": "./assets/media-cleaner-adaptive.png"
       },
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permitir que o MediaCleaner acesse fotos e vídeos para você revisar e escolher o que manter ou excluir.",
+          "savePhotosPermission": "Permitir que o MediaCleaner salve fotos na biblioteca quando solicitado.",
+          "granularPermissions": ["photo", "video", "audio"],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F8FAFC",
+          "image": "./assets/media-cleaner.png",
+          "imageWidth": 160
+        }
+      ],
+      "expo-audio",
+      "expo-video"
+    ],
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/media-cleaner.png"
     }
   }
 }
