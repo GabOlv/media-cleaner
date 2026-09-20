@@ -632,7 +632,7 @@ function TimeWheel({ label, max, selected, onChange }: { label: string; max: num
   const values = Array.from({ length: max + 1 }, (_, index) => index);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: selected * TIME_ROW_HEIGHT, animated: false });
-  }, []);
+  }, [selected]);
   function select(value: number) {
     onChange(value);
     scrollRef.current?.scrollTo({ y: value * TIME_ROW_HEIGHT, animated: true });
@@ -642,7 +642,7 @@ function TimeWheel({ label, max, selected, onChange }: { label: string; max: num
     const next = Math.max(0, Math.min(max, Math.round(offset / TIME_ROW_HEIGHT)));
     onChange(next);
   }
-  return <View style={s.wheelColumn}><Text style={s.wheelLabel}>{label}</Text><View style={s.wheelWindow}><ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} snapToInterval={TIME_ROW_HEIGHT} decelerationRate="fast" scrollEventThrottle={16} contentContainerStyle={s.wheelContent} onScrollEndDrag={finishScroll} onMomentumScrollEnd={finishScroll}>{values.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={`${label} ${String(item).padStart(2, "0")}`} accessibilityState={{ selected: item === selected }} onPress={() => select(item)} style={({ pressed }) => [s.wheelRow, item === selected && s.wheelRowSelected, pressed && { opacity: 0.68 }]}><Text style={[s.wheelValue, item === selected && s.wheelValueSelected]}>{String(item).padStart(2, "0")}</Text></Pressable>)}</ScrollView><View pointerEvents="none" style={s.wheelSelection} /></View></View>;
+  return <View style={s.wheelColumn}><Text style={s.wheelLabel}>{label}</Text><View testID={`time-wheel-${label.toLowerCase()}`} style={s.wheelWindow}><ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} snapToInterval={TIME_ROW_HEIGHT} decelerationRate="fast" scrollEventThrottle={16} contentContainerStyle={s.wheelContent} onScrollEndDrag={finishScroll} onMomentumScrollEnd={finishScroll}>{values.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={`${label} ${String(item).padStart(2, "0")}`} accessibilityState={{ selected: item === selected }} onPress={() => select(item)} style={({ pressed }) => [s.wheelRow, item === selected && s.wheelRowSelected, pressed && { opacity: 0.68 }]}><Text style={[s.wheelValue, item === selected && s.wheelValueSelected]}>{String(item).padStart(2, "0")}</Text></Pressable>)}</ScrollView><View pointerEvents="none" style={s.wheelSelection} /></View></View>;
 }
 
 const TIME_ROW_HEIGHT = 44;

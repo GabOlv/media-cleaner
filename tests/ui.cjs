@@ -107,6 +107,22 @@ const artifacts = path.resolve(__dirname, "../artifacts");
       const data = JSON.parse(value);
       return data.preferences.batchSize === 5 && data.preferences.reminderTimes[0] === 510 && data.preferences.reminderTimes.length === 2;
     });
+
+    await page.getByRole("radio", { name: "3 vezes", exact: true }).click();
+    await page.getByRole("button", { name: /Lembrete 2/ }).click();
+    await page.getByRole("button", { name: "Hora 21", exact: true }).click();
+    await button("Salvar horário").click();
+    await page.getByRole("button", { name: /Lembrete 3/ }).click();
+    const hourWheel = page.getByTestId("time-wheel-hora");
+    const hour20 = page.getByRole("button", { name: "Hora 20", exact: true });
+    await hour20.waitFor();
+    const wheelBox = await hourWheel.boundingBox();
+    const hourBox = await hour20.boundingBox();
+    assert.ok(wheelBox && hourBox, "hour wheel should be visible when editing the third reminder");
+    const wheelCenter = wheelBox.y + wheelBox.height / 2;
+    const hourCenter = hourBox.y + hourBox.height / 2;
+    assert.ok(Math.abs(wheelCenter - hourCenter) < 4, `third reminder wheel is not aligned with 20:00 (${wheelCenter} vs ${hourCenter})`);
+    await button("Cancelar").click();
     await capture("settings-390");
 
     await page.getByRole("button", { name: /Itens ignorados/ }).click();
