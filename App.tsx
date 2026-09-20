@@ -59,7 +59,6 @@ function CleanerApp() {
   const lastTab = useRef(app.tab);
   const [screen, setScreen] = useState<Screen>("home");
   const [history, setHistory] = useState<Screen[]>([]);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [timeSlot, setTimeSlot] = useState<number | null>(null);
   const [customBatchOpen, setCustomBatchOpen] = useState(false);
@@ -125,15 +124,10 @@ function CleanerApp() {
     await app.completeReview([], [file.id]);
   }
 
-  function requestDelete(file: MediaFile) {
-    setConfirmDeleteId(file.id);
-  }
-
-  async function confirmDeletion() {
-    if (!confirmDeleteId) return;
-    const fileId = confirmDeleteId;
-    setConfirmDeleteId(null);
-    await app.completeReview([fileId], [fileId]);
+  async function deleteFile(file: MediaFile) {
+    // The user already made the decision by pressing Excluir. Do not add a
+    // second Dustio confirmation on top of Android's own media permission UI.
+    await app.completeReview([file.id], [file.id]);
   }
 
   async function addProtectedFolder(path: string) {
@@ -184,7 +178,7 @@ function CleanerApp() {
             preferences={preferences}
             onStart={beginReview}
             onKeep={keepFile}
-            onDelete={requestDelete}
+            onDelete={deleteFile}
           />
         );
       case "folders":
@@ -285,16 +279,6 @@ function CleanerApp() {
       </ScrollView>
       <BottomNav active={activeRoot} onNavigate={navigate} bottomInset={insets.bottom} />
 
-      <ConfirmDialog
-        visible={confirmDeleteId !== null}
-        title="Excluir este arquivo?"
-        text="Essa escolha não poderá ser desfeita pelo Dustio."
-        confirmLabel="Excluir arquivo"
-        danger
-        busy={app.deleting || app.busy}
-        onCancel={() => setConfirmDeleteId(null)}
-        onConfirm={confirmDeletion}
-      />
       <ConfirmDialog
         visible={confirmReset}
         title="Redefinir itens ignorados?"

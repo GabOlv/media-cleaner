@@ -23,7 +23,42 @@ import { syncReminders } from "./reminders";
 export type Tab = "home" | "mission" | "folders" | "more";
 
 export function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : "Algo não deu certo. Tente novamente.";
+  const message = error instanceof Error ? error.message : "";
+  const normalized = message.toLowerCase();
+
+  // Android/Expo can expose a long native rejection when the user cancels
+  // its media confirmation. Keep that implementation detail out of the UI.
+  if (
+    normalized.includes("deleteassetsasync") ||
+    normalized.includes("expomedialibrary") ||
+    normalized.includes("didn't grant") ||
+    normalized.includes("did not grant") ||
+    normalized.includes("write permission to requested files") ||
+    normalized.includes("create deleterequest") ||
+    normalized.includes("securityexception")
+  ) {
+    return "Exclusão cancelada. O arquivo continua na lista.";
+  }
+
+  if (
+    normalized.includes("exifinterface") ||
+    normalized.includes("access_media_location") ||
+    normalized.includes("getassetinfoasync")
+  ) {
+    return "Não foi possível obter os detalhes deste arquivo. Ele não foi excluído.";
+  }
+
+  if (
+    normalized.includes("rejected") ||
+    normalized.includes("caused by:") ||
+    normalized.includes(" at expo.") ||
+    normalized.includes(" at android.") ||
+    normalized.includes("exception")
+  ) {
+    return "Não foi possível concluir a operação. Tente novamente.";
+  }
+
+  return message || "Algo não deu certo. Tente novamente.";
 }
 
 export function useCleaner() {

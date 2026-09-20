@@ -72,13 +72,9 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     await page.getByRole("button", { name: /Manter/ }).click();
     await page.getByText("Print que ficou para depois.png", { exact: true }).waitFor();
     await page.getByRole("button", { name: /^.*Excluir$/ }).click();
-    await page.getByText("Excluir este arquivo?", { exact: true }).waitFor();
-    await page.getByRole("button", { name: /Excluir arquivo/ }).click();
     await page.getByText("1 arquivo(s) excluído(s).", { exact: true }).waitFor();
     for (let index = 0; index < 8; index++) {
       await page.getByRole("button", { name: /^.*Excluir$/ }).click();
-      await page.getByText("Excluir este arquivo?", { exact: true }).waitFor();
-      await page.getByRole("button", { name: /Excluir arquivo/ }).click();
     }
     await page.getByText("Revisão concluída", { exact: true }).waitFor();
     const afterDeletion = await journal();

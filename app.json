@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dustio",
     "slug": "media-cleaner",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/dustio-icon.png",
     "userInterfaceStyle": "light",
