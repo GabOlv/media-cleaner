@@ -86,7 +86,8 @@ function CleanerApp() {
   }, [app.tab]);
 
   useEffect(() => {
-    if ((screen === "folders" || screen === "picker") && folderLoadedFor !== screen) {
+    const nativePicker = Platform.OS === "android" && Number(Platform.Version) >= 30;
+    if ((screen === "folders" || (screen === "picker" && !nativePicker)) && folderLoadedFor !== screen) {
       setFolderLoadedFor(screen);
       app.loadFolders();
     }
@@ -143,6 +144,11 @@ function CleanerApp() {
     await app.updatePreferences({ protectedPaths: protect(remaining, path) });
     setReplacePath(null);
     goBack();
+  }
+
+  async function pickNativeProtectedFolder() {
+    const path = await app.pickFolder();
+    if (path) await addProtectedFolder(path);
   }
 
   async function saveCustomBatch() {
@@ -220,6 +226,7 @@ function CleanerApp() {
             query={pickerQuery}
             setQuery={setPickerQuery}
             onPick={addProtectedFolder}
+            onPickNative={pickNativeProtectedFolder}
             replacing={replacePath}
           />
         );
@@ -236,15 +243,7 @@ function CleanerApp() {
               setCustomBatchOpen(true);
             }}
             onOpenSystemSettings={() => Linking.openSettings().catch(() => app.setMessage("Abra as configurações do aplicativo no celular."))}
-            onOpenDeleteSettings={async () => {
-              try {
-                if (Platform.OS === "android" && Number(Platform.Version) >= 31)
-                  await Linking.sendIntent("android.settings.REQUEST_MANAGE_MEDIA");
-                else await Linking.openSettings();
-              } catch {
-                await Linking.openSettings().catch(() => app.setMessage("Abra as configurações do aplicativo no celular."));
-              }
-            }}
+            onOpenDeleteSettings={app.openDeleteSettings}
           />
         );
       case "home":
@@ -492,13 +491,13 @@ function ProtectedPath({ path, onReplace, onRemove }: { path: string; onReplace:
   );
 }
 
-function FolderPicker({ app, preferences, query, setQuery, onPick, replacing }: { app: ReturnType<typeof useCleaner>; preferences: Preferences; query: string; setQuery: (value: string) => void; onPick: (path: string) => void; replacing: string | null }) {
+function FolderPicker({ app, preferences, query, setQuery, onPick, onPickNative, replacing }: { app: ReturnType<typeof useCleaner>; preferences: Preferences; query: string; setQuery: (value: string) => void; onPick: (path: string) => void; onPickNative: () => void | Promise<void>; replacing: string | null }) {
   const folders = useMemo(() => app.folders.filter((folder) => folder.path.toLowerCase().includes(query.toLowerCase().trim())), [app.folders, query]);
+  const nativePicker = Platform.OS === "android" && Number(Platform.Version) >= 30 && !app.demo;
   return (
     <>
-      <View style={ui.header}><Text style={ui.h2}>{replacing ? "Trocar pasta protegida" : "Escolha uma pasta"}</Text><Text style={ui.body}>Pesquisar só organiza a lista; a proteção sempre inclui as subpastas.</Text></View>
-      <TextInput accessibilityLabel="Buscar pasta" value={query} onChangeText={setQuery} placeholder="Buscar pasta" placeholderTextColor={C.disabled} style={ui.input} autoCapitalize="none" />
-      {app.folderLoading ? <View style={s.centerCard}><ActivityIndicator color={C.accent} /><Text style={ui.body}>Encontrando pastas…</Text></View> : app.folderError ? <View style={ui.card}><Text style={ui.body}>{app.folderError}</Text>{Platform.OS !== "web" && <Button label="Permitir acesso" onPress={app.access} disabled={app.busy} />}<Button label="Tentar novamente" secondary onPress={app.loadFolders} disabled={app.busy} /></View> : folders.length === 0 ? <View style={ui.card}><Text style={ui.body}>Nenhuma pasta encontrada.</Text></View> : <View style={ui.card}>{folders.map((folder) => <Pressable key={folder.path} accessibilityRole="button" accessibilityLabel={`${shortPath(folder.path)}, ${folder.count} arquivos`} onPress={() => onPick(folder.path)} style={({ pressed }) => [s.folderOption, pressed && { opacity: 0.68 }]}><View style={s.pathIcon}><Ionicons name="folder-outline" size={20} color={C.accent} /></View><View style={{ flex: 1 }}><Text style={s.fileName} numberOfLines={1}>{shortPath(folder.path)}</Text><Text style={ui.small}>{folder.count} arquivo(s) encontrados</Text></View><Ionicons name="add-circle-outline" size={22} color={C.accent} /></Pressable>)}</View>}
+      <View style={ui.header}><Text style={ui.h2}>{replacing ? "Trocar pasta protegida" : "Escolha uma pasta"}</Text><Text style={ui.body}>{nativePicker ? "Abra o gerenciador do Android e selecione a pasta que nunca deve entrar nas revisões." : "Pesquisar só organiza a lista; a proteção sempre inclui as subpastas."}</Text></View>
+      {nativePicker ? <View style={ui.card}><View style={s.nativePickerIntro}><View style={s.pathIcon}><Ionicons name="folder-open-outline" size={22} color={C.accent} /></View><View style={{ flex: 1, gap: 3 }}><Text style={ui.rowTitle}>Selecionar no dispositivo</Text><Text style={ui.small}>Você escolhe qualquer pasta disponível. As subpastas também serão protegidas.</Text></View></View><Button label="Abrir gerenciador de arquivos" icon="folder-open-outline" onPress={onPickNative} disabled={app.busy || app.unsaved} /></View> : <><TextInput accessibilityLabel="Buscar pasta" value={query} onChangeText={setQuery} placeholder="Buscar pasta" placeholderTextColor={C.disabled} style={ui.input} autoCapitalize="none" />{app.folderLoading ? <View style={s.centerCard}><ActivityIndicator color={C.accent} /><Text style={ui.body}>Encontrando pastas…</Text></View> : app.folderError ? <View style={ui.card}><Text style={ui.body}>{app.folderError}</Text>{Platform.OS !== "web" && <Button label="Permitir acesso" onPress={app.access} disabled={app.busy} />}<Button label="Tentar novamente" secondary onPress={app.loadFolders} disabled={app.busy} /></View> : folders.length === 0 ? <View style={ui.card}><Text style={ui.body}>Nenhuma pasta encontrada.</Text></View> : <View style={ui.card}>{folders.map((folder) => <Pressable key={folder.path} accessibilityRole="button" accessibilityLabel={`${shortPath(folder.path)}, ${folder.count} arquivos`} onPress={() => onPick(folder.path)} style={({ pressed }) => [s.folderOption, pressed && { opacity: 0.68 }]}><View style={s.pathIcon}><Ionicons name="folder-outline" size={20} color={C.accent} /></View><View style={{ flex: 1 }}><Text style={s.fileName} numberOfLines={1}>{shortPath(folder.path)}</Text><Text style={ui.small}>{folder.count} arquivo(s) encontrados</Text></View><Ionicons name="add-circle-outline" size={22} color={C.accent} /></Pressable>)}</View>}</>}
       {preferences.protectedPaths.length > 0 && <Text style={ui.small}>Protegidas atualmente: {preferences.protectedPaths.length}</Text>}
     </>
   );
@@ -554,9 +553,9 @@ function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, on
           <Row title="Itens ignorados" detail={`${app.journal?.ignoredIds.length || 0} na lista`} icon="eye-off-outline" onPress={onReset} disabled={!app.journal?.ignoredIds.length} />
         </View>
       </Section>
-      {Platform.OS === "android" && Number(Platform.Version) >= 31 && <Section title="Permissões">
+      {app.mediaManagementGranted !== null && <Section title="Permissões">
         <View style={ui.card}>
-          <Row title="Permitir exclusões sem confirmação" detail="Acesso especial do Android, solicitado uma única vez" icon="shield-checkmark-outline" onPress={onOpenDeleteSettings} />
+          <Row title="Permitir exclusões sem confirmação" detail={app.mediaManagementGranted ? "Acesso ativo no Android" : "Toque para autorizar uma vez no Android"} icon="shield-checkmark-outline" onPress={onOpenDeleteSettings} />
         </View>
       </Section>}
       <Section title="Acessibilidade">
@@ -701,6 +700,7 @@ const s = StyleSheet.create({
   pathIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: C.accentPale, alignItems: "center", justifyContent: "center" },
   iconButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 9 },
   folderOption: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  nativePickerIntro: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 14 },
   switchRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12 },
   divider: { height: 1, backgroundColor: C.border },
   bottomNav: { position: "absolute", bottom: 0, left: 0, right: 0, minHeight: 72, paddingTop: 7, paddingHorizontal: 8, flexDirection: "row", backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },

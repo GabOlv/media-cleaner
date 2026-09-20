@@ -58,6 +58,9 @@ test("protected folders include descendants but not similarly named siblings", (
   assert.equal(model.normalizePath("file:///storage/My%20Music///"), "/storage/My Music");
   assert.deepEqual(model.protect(["/storage/Music/Rock"], "/storage/Music"), ["/storage/Music"]);
   assert.deepEqual(model.protect(["/storage/Music"], "/storage/Music/Rock"), ["/storage/Music"]);
+  assert.equal(model.pathFromStorageAccessUri("content://com.android.externalstorage.documents/tree/primary%3AMusic"), "/storage/emulated/0/Music");
+  assert.equal(model.pathFromStorageAccessUri("content://com.android.externalstorage.documents/tree/ABCD-1234%3ARecordings%2FPhone"), "/storage/ABCD-1234/Recordings/Phone");
+  assert.equal(model.pathFromStorageAccessUri("content://com.android.externalstorage.documents/document/primary%3AMusic"), null);
 });
 
 test("kept files become ignored, deleted files update totals, and the next day resets only daily progress", () => {

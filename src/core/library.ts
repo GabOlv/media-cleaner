@@ -8,6 +8,7 @@ import {
   MediaFile,
   MediaKind,
   normalizePath,
+  pathFromStorageAccessUri,
   Preferences,
 } from "./model";
 import { candidateWindow, selectWeighted } from "./selection";
@@ -47,6 +48,18 @@ export async function permission(
     Object.assign(error, { cause });
     throw error;
   }
+}
+
+/** Opens Android's native directory picker and returns a comparable storage path. */
+export async function pickFolder(): Promise<string | null> {
+  if (Platform.OS !== "android")
+    throw new Error("A seleção nativa de pastas está disponível no Android.");
+  const result = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+  if (!result.granted) return null;
+  const path = pathFromStorageAccessUri(result.directoryUri);
+  if (!path)
+    throw new Error("O Android não informou uma pasta de armazenamento compatível. Tente escolher outra pasta.");
+  return path;
 }
 async function resolve(asset: Library.Asset): Promise<MediaFile> {
   // Keep the URI returned by getAssetsAsync. Resolving full asset info reads

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, AppState, Platform } from "react-native";
-import { demoFiles, discover, exists, libraryUnavailable, loadQueued, permission, remove, scan } from "./library";
+import { demoFiles, discover, exists, libraryUnavailable, loadQueued, permission, pickFolder as pickNativeFolder, remove, scan } from "./library";
+import { hasMediaManagementAccess, openMediaManagementSettings, promptMediaManagementAccess, supportsMediaManagement } from "./devicePermissions";
 import { loadJournal, saveJournal } from "./journal";
 import {
   Folder,
@@ -45,6 +46,7 @@ export function useCleaner() {
   const [folderError, setFolderError] = useState("");
   const [unsaved, setUnsaved] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState<boolean | null>(null);
+  const [mediaManagementGranted, setMediaManagementGranted] = useState<boolean | null>(null);
   const abort = useRef<AbortController | null>(null);
   const folderAbort = useRef<AbortController | null>(null);
   const pending = useRef<Journal | null>(null);
@@ -142,8 +144,9 @@ export function useCleaner() {
   }
 
   const initialize = useCallback(async () => {
+    let loaded: Journal;
     try {
-      const loaded = await loadJournal();
+      loaded = await loadJournal();
       publish(loaded);
       if (Platform.OS !== "web") {
         const reminder = await syncReminders(loaded.preferences);
@@ -153,7 +156,31 @@ export function useCleaner() {
       }
       const unavailable = libraryUnavailable(loaded.preferences.types);
       setGranted(false);
-      if (!unavailable) setGranted(await permission(false, loaded.preferences.types));
+      let mediaGranted = false;
+      if (!unavailable) {
+        try {
+          mediaGranted = await permission(true, loaded.preferences.types);
+          setGranted(mediaGranted);
+        } catch (error) {
+          setMessage(errorText(error));
+        }
+      }
+      if (supportsMediaManagement()) {
+        try {
+          const managementGranted = mediaGranted
+            ? await promptMediaManagementAccess()
+            : await hasMediaManagementAccess();
+          setMediaManagementGranted(managementGranted);
+          if (managementGranted === false && mediaGranted)
+            setMessage("Permita o acesso de gerenciamento de mídia para não confirmar cada exclusão.");
+        } catch {
+          setMediaManagementGranted(false);
+          if (mediaGranted)
+            setMessage("Abra os Ajustes para permitir exclusões sem confirmação.");
+        }
+      } else {
+        setMediaManagementGranted(null);
+      }
     } catch (error) {
       setMessage(errorText(error));
     }
@@ -175,6 +202,22 @@ export function useCleaner() {
             setMessage("As notificações estão desativadas no Android. Confira os Ajustes.");
         } catch {
           setMessage("O lembrete não pôde ser atualizado. Confira os Ajustes.");
+        }
+      }
+      if (supportsMediaManagement()) {
+        try {
+          const managementGranted = await hasMediaManagementAccess();
+          setMediaManagementGranted(managementGranted);
+          if (managementGranted === true) {
+            setMessage((current) =>
+              current === "Permita o acesso de gerenciamento de mídia para não confirmar cada exclusão." ||
+              current === "Abra os Ajustes para permitir exclusões sem confirmação."
+                ? ""
+                : current,
+            );
+          }
+        } catch {
+          setMediaManagementGranted(false);
         }
       }
       if (lock.current) return;
@@ -325,8 +368,13 @@ export function useCleaner() {
           }
           const removed = demoRef.current || (await remove(file));
           if (!removed) {
-            failed.push(file);
-            continue;
+            // Some Android builds complete the system delete request but do
+            // not propagate its boolean result reliably. Confirm the asset's
+            // actual absence before deciding that deletion failed.
+            if (await exists(file)) {
+              failed.push(file);
+              continue;
+            }
           }
           next = record(next, file, true);
           deletedCount++;
@@ -389,6 +437,30 @@ export function useCleaner() {
     } finally {
       lock.current = false;
       setBusy(false);
+    }
+  }
+
+  async function pickFolder() {
+    if (lock.current || pending.current) return null;
+    lock.current = true;
+    setBusy(true);
+    try {
+      setMessage("");
+      return await pickNativeFolder();
+    } catch (error) {
+      setMessage(errorText(error));
+      return null;
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function openDeleteSettings() {
+    try {
+      await openMediaManagementSettings();
+    } catch {
+      setMessage("Abra os Ajustes do Android para permitir o gerenciamento de mídia.");
     }
   }
 
@@ -504,6 +576,7 @@ export function useCleaner() {
     folderLoading,
     folderError,
     notificationGranted,
+    mediaManagementGranted,
     unsaved,
     retrySave,
     initialize,
@@ -511,6 +584,8 @@ export function useCleaner() {
     startMission,
     completeReview,
     resetIgnored,
+    pickFolder,
+    openDeleteSettings,
     updatePreferences,
     loadFolders,
     switchDemo,

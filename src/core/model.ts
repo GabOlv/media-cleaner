@@ -65,6 +65,24 @@ export function normalizePath(path: string): string {
   return value.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 }
 
+/** Converts the Android Storage Access Framework tree URI to a shared-storage path. */
+export function pathFromStorageAccessUri(uri: string): string | null {
+  const match = /^content:\/\/[^/]+\/tree\/([^/?#]+)/i.exec(uri.trim());
+  if (!match) return null;
+  let documentId: string;
+  try {
+    documentId = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  const separator = documentId.indexOf(":");
+  if (separator <= 0) return null;
+  const volume = documentId.slice(0, separator);
+  const relative = documentId.slice(separator + 1).replace(/^\/+|\/+$/g, "");
+  const root = volume.toLowerCase() === "primary" ? "/storage/emulated/0" : `/storage/${volume}`;
+  return normalizePath(relative ? `${root}/${relative}` : root);
+}
+
 export function within(path: string, parent: string): boolean {
   const p = normalizePath(path),
     root = normalizePath(parent);
