@@ -76,6 +76,7 @@ function CleanerApp() {
     : screen === "protected" || screen === "picker"
       ? ([...history].reverse().find((item) => ROOT_SCREENS.includes(item as RootScreen)) as RootScreen | undefined) || "folders"
       : "more";
+  const showTopBar = history.length > 0;
 
   useEffect(() => {
     if (app.tab !== lastTab.current && ROOT_SCREENS.includes(app.tab as RootScreen)) {
@@ -247,22 +248,20 @@ function CleanerApp() {
   return (
     <View style={s.appShell}>
       <StatusBar style="dark" />
-      <View style={s.topBar}>
+      {showTopBar && <View style={s.topBar}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voltar"
-          accessibilityState={{ disabled: history.length === 0 }}
-          disabled={history.length === 0}
           onPress={goBack}
-          style={({ pressed }) => [s.backButton, history.length === 0 && s.backPlaceholder, pressed && { opacity: 0.6 }]}
+          style={({ pressed }) => [s.backButton, pressed && { opacity: 0.6 }]}
         >
-          {history.length > 0 && <Ionicons name="chevron-back" size={24} color={C.ink} />}
+          <Ionicons name="chevron-back" size={24} color={C.ink} />
         </Pressable>
         <View style={s.topBarText}>
           <Text style={ui.title}>{headerTitle[screen]}</Text>
         </View>
         <View style={s.topBarSpacer} />
-      </View>
+      </View>}
       <ScrollView
         contentContainerStyle={[ui.page, { paddingBottom: 112 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"

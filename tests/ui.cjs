@@ -50,6 +50,7 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByText("Uma pequena revisão por dia.", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Início", { exact: true }).count(), 1, "root screen should not duplicate its title above the content");
     await assertCleanBranding();
     await assertLayout();
     const primary = button("Começar revisão");
