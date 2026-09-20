@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, AppState, Platform } from "react-native";
-import { demoFiles, discover, libraryUnavailable, permission, remove, scan } from "./library";
+import { demoFiles, discover, exists, libraryUnavailable, loadQueued, permission, remove, scan } from "./library";
 import { loadJournal, saveJournal } from "./journal";
 import {
   Folder,
@@ -11,9 +11,12 @@ import {
   MediaFile,
   Preferences,
   record,
+  removeFromQueue,
+  setQueue,
   today,
 } from "./model";
-import { schedule } from "./reminders";
+import { selectWeighted } from "./selection";
+import { syncReminders } from "./reminders";
 
 export type Tab = "home" | "mission" | "folders" | "more";
 
@@ -40,6 +43,7 @@ export function useCleaner() {
   const [folderLoading, setFolderLoading] = useState(false);
   const [folderError, setFolderError] = useState("");
   const [unsaved, setUnsaved] = useState(false);
+  const [notificationGranted, setNotificationGranted] = useState<boolean | null>(null);
   const abort = useRef<AbortController | null>(null);
   const folderAbort = useRef<AbortController | null>(null);
   const pending = useRef<Journal | null>(null);
@@ -54,14 +58,98 @@ export function useCleaner() {
     publish(next);
   };
 
+  function missionSeed(journal: Journal): string {
+    return [
+      journal.mission.date,
+      journal.preferences.types.join(","),
+      journal.preferences.protectedPaths.join("|"),
+    ].join(":");
+  }
+
+  function demoQueue(ids: string[], journal: Journal, remaining: number): MediaFile[] {
+    const available = demoFiles.filter(
+      (file) =>
+        !journal.ignoredIds.includes(file.id) &&
+        !journal.mission.reviewed.includes(file.id) &&
+        !isProtected(file.path, journal.preferences.protectedPaths),
+    );
+    const byId = new Map(available.map((file) => [file.id, file]));
+    const queued = ids.map((id) => byId.get(id)).filter((file): file is MediaFile => !!file);
+    if (queued.length >= remaining) return queued.slice(0, remaining);
+    const excluded = new Set([...ids, ...queued.map((file) => file.id)]);
+    return [
+      ...queued,
+      ...selectWeighted(
+        available.filter((file) => !excluded.has(file.id)),
+        remaining - queued.length,
+        missionSeed(journal),
+      ),
+    ];
+  }
+
+  async function refreshMission(
+    source: Journal,
+    signal?: AbortSignal,
+  ): Promise<{ journal: Journal; files: MediaFile[]; missing: number; unknown: number }> {
+    const base = today(source);
+    const remaining = Math.max(0, base.mission.target - base.mission.reviewed.length);
+    if (!remaining) {
+      return { journal: setQueue(base, []), files: [], missing: 0, unknown: 0 };
+    }
+
+    let files: MediaFile[] = [];
+    let missing = 0;
+    let unknown = 0;
+    if (demoRef.current) {
+      files = demoQueue(base.mission.queueIds, base, remaining);
+      missing = Math.max(0, base.mission.queueIds.length - files.length);
+    } else if (base.mission.queueIds.length) {
+      const hydrated = await loadQueued(base.preferences, base.mission.queueIds, signal);
+      files = hydrated.files;
+      missing = hydrated.missing.length;
+      unknown = hydrated.unknown;
+    }
+
+    const excluded = [
+      ...base.ignoredIds,
+      ...base.mission.reviewed,
+      ...base.mission.queueIds,
+      ...files.map((file) => file.id),
+    ];
+    const slots = Math.max(0, remaining - files.length);
+    if (slots) {
+      const result = demoRef.current
+        ? {
+            files: demoQueue(excluded, base, slots),
+            unknown: 0,
+          }
+        : await scan(base.preferences, excluded, slots, signal, missionSeed(base));
+      files = [...files, ...result.files].slice(0, remaining);
+      unknown += result.unknown;
+    }
+
+    const available = base.mission.reviewed.length + files.length;
+    const target = files.length < remaining ? available : base.mission.target;
+    const next = setQueue(
+      {
+        ...base,
+        mission: { ...base.mission, target },
+      },
+      files.map((file) => file.id),
+    );
+    return { journal: next, files, missing, unknown };
+  }
+
   const initialize = useCallback(async () => {
     try {
       const loaded = await loadJournal();
       publish(loaded);
-      if (Platform.OS !== "web")
-        schedule(loaded.preferences).catch(() =>
-          setMessage("O lembrete não pôde ser atualizado. Confira os Ajustes."),
-        );
+      if (Platform.OS !== "web") {
+        const reminder = await syncReminders(loaded.preferences);
+        setNotificationGranted(reminder.permissionGranted);
+        if (loaded.preferences.reminder && !reminder.permissionGranted)
+          setMessage("As notificações estão desativadas no Android. Confira os Ajustes.");
+      }
       const unavailable = libraryUnavailable(loaded.preferences.types);
       setGranted(false);
       if (!unavailable) setGranted(await permission(false, loaded.preferences.types));
@@ -75,19 +163,46 @@ export function useCleaner() {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduced);
     const motion = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
     const resume = AppState.addEventListener("change", async (value) => {
-      if (value !== "active" || lock.current || demoRef.current) return;
-      if (state.current && state.current.mission.date !== localDay()) {
-        publish(today(state.current));
+      if (value !== "active" || demoRef.current) return;
+      const current = state.current;
+      if (!current) return;
+      if (Platform.OS !== "web") {
+        try {
+          const reminder = await syncReminders(current.preferences);
+          setNotificationGranted(reminder.permissionGranted);
+          if (current.preferences.reminder && !reminder.permissionGranted)
+            setMessage("As notificações estão desativadas no Android. Confira os Ajustes.");
+        } catch {
+          setMessage("O lembrete não pôde ser atualizado. Confira os Ajustes.");
+        }
+      }
+      if (lock.current) return;
+      let base = current;
+      if (base.mission.date !== localDay()) {
+        base = today(base);
+        publish(base);
         setFiles([]);
         setSearched(false);
       }
       try {
-        const types = state.current?.preferences.types ?? freshJournal().preferences.types;
+        const types = base.preferences.types ?? freshJournal().preferences.types;
         setGranted(false);
-        if (!libraryUnavailable(types)) setGranted(await permission(false, types));
+        if (libraryUnavailable(types)) return;
+        setGranted(await permission(false, types));
+        if (!base.mission.queueIds.length && !searched) return;
+        lock.current = true;
+        setBusy(true);
+        const refreshed = await refreshMission(base);
+        await commit(refreshed.journal);
+        setFiles(refreshed.files);
+        setSearched(true);
+        if (refreshed.missing)
+          setMessage("A lista foi atualizada porque alguns arquivos já não estavam disponíveis.");
       } catch (error) {
-        setGranted(false);
-        setMessage(errorText(error));
+        if (error instanceof Error && error.message !== "Busca cancelada.") setMessage(errorText(error));
+      } finally {
+        lock.current = false;
+        setBusy(false);
       }
     });
     return () => {
@@ -153,29 +268,15 @@ export function useCleaner() {
     abort.current = controller;
     try {
       const next = today(state.current);
-      await commit(next);
-      const remaining = Math.max(0, next.mission.target - next.mission.reviewed.length);
-      const excluded = [...new Set([...next.ignoredIds, ...next.mission.reviewed])];
-      const result = demoRef.current
-        ? {
-            files: demoFiles
-              .filter(
-                (file) =>
-                  !excluded.includes(file.id) &&
-                  !isProtected(file.path, next.preferences.protectedPaths),
-              )
-              .slice(0, remaining),
-            unknown: 0,
-          }
-        : await scan(next.preferences, excluded, remaining, controller.signal);
+      const result = await refreshMission(next, controller.signal);
       if (controller.signal.aborted) return;
-      const available = next.mission.reviewed.length + result.files.length;
-      if (available > 0 && available < next.mission.target)
-        await commit({ ...next, mission: { ...next.mission, target: available } });
+      await commit(result.journal);
       setFiles(result.files);
       setSearched(true);
       if (result.unknown)
         setMessage("Alguns arquivos sem pasta identificável ficaram fora para respeitar suas proteções.");
+      else if (result.missing)
+        setMessage("A lista foi atualizada porque alguns arquivos já não estavam disponíveis.");
     } catch (error) {
       if (!controller.signal.aborted) setMessage(errorText(error));
     } finally {
@@ -195,10 +296,16 @@ export function useCleaner() {
     let next = state.current;
     const failed: MediaFile[] = [];
     let deletedCount = 0;
+    let missingCount = 0;
     let firstError = "";
     try {
       for (const file of selected) {
         try {
+          if (!demoRef.current && !(await exists(file))) {
+            next = removeFromQueue(next, file.id);
+            missingCount++;
+            continue;
+          }
           const removed = demoRef.current || (await remove(file));
           if (!removed) {
             failed.push(file);
@@ -213,7 +320,12 @@ export function useCleaner() {
       }
       for (const file of ignored) next = record(next, file, false);
       const failedIds = new Set(failed.map((file) => file.id));
-      const remaining = files.filter((file) => !handled.has(file.id) || failedIds.has(file.id));
+      let remaining = files.filter((file) => !handled.has(file.id) || failedIds.has(file.id));
+      if (missingCount) {
+        const refreshed = await refreshMission(next);
+        next = refreshed.journal;
+        remaining = refreshed.files;
+      }
       try {
         await commit(next);
       } catch (error) {
@@ -229,6 +341,8 @@ export function useCleaner() {
         setMessage(firstError || `${failed.length} arquivo(s) não foram excluídos e continuam na lista.`);
       } else if (deletedCount) {
         setMessage(`${deletedCount} arquivo(s) excluído(s).`);
+      } else if (missingCount) {
+        setMessage("A lista foi atualizada porque o arquivo já não estava disponível.");
       } else if (!handledIds) {
         setMessage(`${ignored.length} arquivo(s) ignorado(s) nesta revisão.`);
       } else {
@@ -274,18 +388,19 @@ export function useCleaner() {
         next = { ...next, mission: { ...next.mission, target: change.batchSize } };
       if (
         (change.reminder !== undefined ||
-          change.reminderTimes !== undefined ||
-          change.batchSize !== undefined) &&
+          change.reminderTimes !== undefined) &&
         !demoRef.current && Platform.OS !== "web"
       ) {
-        const ok = await schedule(next.preferences, change.reminder === true);
-        if (!ok && next.preferences.reminder) {
-          next = { ...next, preferences: { ...next.preferences, reminder: false } };
+        const reminder = await syncReminders(next.preferences, change.reminder === true);
+        setNotificationGranted(reminder.permissionGranted);
+        if (!reminder.ok && next.preferences.reminder) {
           setMessage("Ative as notificações nas configurações do celular para usar os lembretes.");
         }
       }
       await commit(next);
       if (change.protectedPaths || change.types || change.batchSize) {
+        next = setQueue(next, []);
+        await commit(next);
         setFiles([]);
         setSearched(false);
       }
@@ -372,6 +487,7 @@ export function useCleaner() {
     folders,
     folderLoading,
     folderError,
+    notificationGranted,
     unsaved,
     retrySave,
     initialize,

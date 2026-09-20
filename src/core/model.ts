@@ -28,10 +28,12 @@ export interface Mission {
   reviewed: string[];
   deleted: number;
   bytes: number;
+  /** IDs already selected for this day's review and still pending. */
+  queueIds: string[];
 }
 
 export interface Journal {
-  version: 3;
+  version: 4;
   preferences: Preferences;
   /** Files deliberately kept out of future reviews. */
   ignoredIds: string[];
@@ -148,12 +150,19 @@ export function setReminderTime(
 }
 
 export function freshMission(target: number): Mission {
-  return { date: localDay(), target: clampBatchSize(target), reviewed: [], deleted: 0, bytes: 0 };
+  return {
+    date: localDay(),
+    target: clampBatchSize(target),
+    reviewed: [],
+    deleted: 0,
+    bytes: 0,
+    queueIds: [],
+  };
 }
 
 export function freshJournal(): Journal {
   return {
-    version: 3,
+    version: 4,
     preferences: {
       batchSize: 10,
       types: ["photo", "video", "audio"],
@@ -196,6 +205,37 @@ export function record(
       reviewed: [...state.mission.reviewed, file.id],
       deleted: state.mission.deleted + Number(deleted),
       bytes: state.mission.bytes + bytes,
+      queueIds: state.mission.queueIds.filter((id) => id !== file.id),
+    },
+  };
+}
+
+/** Removes an item from the pending queue without treating it as reviewed. */
+export function removeFromQueue(journal: Journal, id: string): Journal {
+  const state = today(journal);
+  if (!state.mission.queueIds.includes(id)) return state;
+  return {
+    ...state,
+    mission: {
+      ...state.mission,
+      queueIds: state.mission.queueIds.filter((item) => item !== id),
+    },
+  };
+}
+
+/** Replaces the pending queue while preserving order and removing duplicates. */
+export function setQueue(journal: Journal, ids: string[]): Journal {
+  const state = today(journal);
+  const reviewed = new Set(state.mission.reviewed);
+  const ignored = new Set(state.ignoredIds);
+  const queueIds = Array.from(
+    new Set(ids.filter((id) => !!id && !reviewed.has(id) && !ignored.has(id))),
+  );
+  return {
+    ...state,
+    mission: {
+      ...state.mission,
+      queueIds,
     },
   };
 }

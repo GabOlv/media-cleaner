@@ -23,6 +23,7 @@ function load(name, mocks = {}) {
 }
 
 const model = load("model");
+const selection = load("selection", { "./model": model });
 const asset = (id, uri = `file:///storage/emulated/0/DCIM/${id}.jpg`, mediaType = "photo") => ({
   id,
   uri,
@@ -43,9 +44,10 @@ function library(overrides = {}, runtime = "standalone", os = "android") {
       deleteAssetsAsync: async () => true,
       ...overrides,
     },
-    "expo-file-system/legacy": {
+      "expo-file-system/legacy": {
       getInfoAsync: async () => ({ exists: true, size: 42 }),
     },
+    "./selection": selection,
   });
 }
 
@@ -82,6 +84,29 @@ test("reminder slots stay unique and move a collision forward by ten minutes", (
   assert.equal(model.minutesToTime(1440), "00:00");
   assert.equal(model.timeToMinutes("23:59"), 1439);
   assert.equal(model.timeToMinutes("25:99"), null);
+});
+
+test("weighted selection keeps the oldest item first and gives sparse types more chances", () => {
+  const files = [
+    ...Array.from({ length: 16 }, (_, index) => ({ id: `photo-${index}`, kind: "photo", created: index })),
+    ...Array.from({ length: 2 }, (_, index) => ({ id: `video-${index}`, kind: "video", created: 30 + index })),
+    ...Array.from({ length: 2 }, (_, index) => ({ id: `audio-${index}`, kind: "audio", created: 40 + index })),
+  ];
+  const results = Array.from({ length: 100 }, (_, index) => selection.selectWeighted(files, 5, `day-${index}`));
+  const videoSelections = results.reduce((total, result) => total + result.filter((file) => file.kind === "video").length, 0);
+  const audioSelections = results.reduce((total, result) => total + result.filter((file) => file.kind === "audio").length, 0);
+  assert.equal(results.every((result) => result[0].id === "photo-0"), true);
+  assert.ok(videoSelections > 0, "videos should receive opportunities in a skewed library");
+  assert.ok(audioSelections > 0, "audios should receive opportunities in a skewed library");
+});
+
+test("queue helpers remove resolved items without changing deletion totals", () => {
+  const initial = model.setQueue(model.freshJournal(), ["a", "b"]);
+  const next = model.removeFromQueue(initial, "a");
+  assert.deepEqual(next.mission.queueIds, ["b"]);
+  assert.deepEqual(next.mission.reviewed, []);
+  assert.equal(next.deleted, 0);
+  assert.deepEqual(model.record(next, { id: "b", bytes: 20 }, true).mission.queueIds, []);
 });
 
 test("scan paginates beyond protected and reviewed pages to fill the daily batch", async () => {
@@ -181,7 +206,7 @@ test("empty type selection never requests all permissions by accident", async ()
   assert.deepEqual(await lib.scan(model.freshJournal().preferences, [], 0), { files: [], unknown: 0 });
 });
 
-test("journal migrates v2 and legacy settings to version 3 without rewards or legacy time fields", async () => {
+test("journal migrates v2 and legacy settings to version 4 without rewards or legacy time fields", async () => {
   const previous = {
     ...model.freshJournal(),
     version: 2,
@@ -197,12 +222,12 @@ test("journal migrates v2 and legacy settings to version 3 without rewards or le
     },
   });
   const result = await journal.loadJournal();
-  assert.equal(result.version, 3);
+  assert.equal(result.version, 4);
   assert.deepEqual(result.ignoredIds, ["kept"]);
   assert.deepEqual(result.preferences.reminderTimes, [0]);
   assert.equal("time" in result.preferences, false);
   assert.equal("xp" in result, false);
-  assert.deepEqual(JSON.parse(data.get("@media_cleaner_journal_v3")), result);
+  assert.deepEqual(JSON.parse(data.get("@media_cleaner_journal_v4")), result);
 });
 
 test("legacy settings migrate folder exclusions, batch size, types, and multiple times", async () => {

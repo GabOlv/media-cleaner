@@ -10,6 +10,7 @@ import {
   normalizePath,
   Preferences,
 } from "./model";
+import { candidateWindow, selectWeighted } from "./selection";
 
 export function libraryUnavailable(types: MediaKind[]): string | null {
   return Platform.OS === "android" && Constants.executionEnvironment === "storeClient" && types.some((kind) => kind !== "audio")
@@ -74,16 +75,29 @@ async function resolve(asset: Library.Asset): Promise<MediaFile> {
     albumId: asset.albumId,
   };
 }
+
+async function addSize(file: MediaFile): Promise<MediaFile> {
+  try {
+    const info = await FileSystem.getInfoAsync(file.uri);
+    if (info.exists && "size" in info) file.bytes = info.size;
+  } catch {
+    /* Unknown size stays unknown. */
+  }
+  return file;
+}
+
 export async function scan(
   preferences: Preferences,
   reviewed: string[],
   limit: number,
   signal?: AbortSignal,
+  seed = "dustio",
 ): Promise<{ files: MediaFile[]; unknown: number }> {
   if (!preferences.types.length || limit <= 0) return { files: [], unknown: 0 };
   if (!(await permission(false, preferences.types)))
     throw new Error("Permita o acesso às mídias para começar.");
   const files: MediaFile[] = [];
+  const window = candidateWindow(limit);
   let after: string | undefined;
   let unknown = 0;
   const seen = new Set(reviewed);
@@ -106,19 +120,72 @@ export async function scan(
         continue;
       }
       if (isProtected(file.path, preferences.protectedPaths)) continue;
-      try {
-        const info = await FileSystem.getInfoAsync(file.uri);
-        if (info.exists && "size" in info) file.bytes = info.size;
-      } catch {
-        /* Unknown size stays unknown. */
-      }
-      files.push(file);
-      if (files.length >= limit) return { files, unknown };
+      files.push(await addSize(file));
+      if (files.length >= window) break;
     }
+    if (files.length >= window) break;
     if (!page.hasNextPage || page.endCursor === after) break;
     after = page.endCursor;
   } while (after);
-  return { files, unknown };
+  return { files: selectWeighted(files, limit, seed), unknown };
+}
+
+/** Rehydrates the small persisted daily queue without scanning the whole library. */
+export async function loadQueued(
+  preferences: Preferences,
+  ids: string[],
+  signal?: AbortSignal,
+): Promise<{ files: MediaFile[]; missing: string[]; unknown: number }> {
+  if (!ids.length || !preferences.types.length)
+    return { files: [], missing: [...ids], unknown: 0 };
+  if (!(await permission(false, preferences.types)))
+    throw new Error("Permita o acesso às mídias para continuar a revisão.");
+
+  const wanted = new Set(ids);
+  const found = new Map<string, MediaFile>();
+  let after: string | undefined;
+  let unknown = 0;
+  do {
+    if (signal?.aborted) throw new Error("Busca cancelada.");
+    const page = await Library.getAssetsAsync({
+      first: 200,
+      after,
+      mediaType: preferences.types,
+      sortBy: [[Library.SortBy.creationTime, true]],
+    });
+    for (const asset of page.assets) {
+      if (signal?.aborted) throw new Error("Busca cancelada.");
+      if (!wanted.has(asset.id) || found.has(asset.id)) continue;
+      const file = await resolve(asset);
+      if (!file.path && preferences.protectedPaths.length) {
+        unknown++;
+        continue;
+      }
+      if (isProtected(file.path, preferences.protectedPaths)) continue;
+      found.set(file.id, await addSize(file));
+    }
+    if (found.size >= wanted.size || !page.hasNextPage || page.endCursor === after) break;
+    after = page.endCursor;
+  } while (after);
+
+  return {
+    files: ids.map((id) => found.get(id)).filter((file): file is MediaFile => !!file),
+    missing: ids.filter((id) => !found.has(id)),
+    unknown,
+  };
+}
+
+/** Checks the asset immediately before a destructive operation. */
+export async function exists(file: MediaFile): Promise<boolean> {
+  if (file.demo || Platform.OS === "web") return true;
+  try {
+    const info = await Library.getAssetInfoAsync(file.id);
+    return info !== null && info !== undefined;
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    if (/not found|does not exist|no asset|unknown asset|deleted/i.test(detail)) return false;
+    throw cause;
+  }
 }
 export async function discover(signal?: AbortSignal, types: MediaKind[] = ["photo", "video", "audio"]): Promise<Folder[]> {
   if (!types.length) return [];

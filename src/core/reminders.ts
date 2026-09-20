@@ -4,6 +4,12 @@ import type { Preferences } from "./model";
 const OWNER = "media-cleaner-daily-review";
 const CHANNEL = "daily-review";
 
+export interface ReminderSyncResult {
+  ok: boolean;
+  permissionGranted: boolean | null;
+  scheduled: number;
+}
+
 async function cancelOwned(n: any): Promise<void> {
   const scheduled = await n.getAllScheduledNotificationsAsync?.();
   if (Array.isArray(scheduled) && n.cancelScheduledNotificationAsync) {
@@ -22,10 +28,17 @@ export async function schedule(
   preferences: Preferences,
   request = false,
 ): Promise<boolean> {
-  if (Platform.OS === "web") return false;
+  return (await syncReminders(preferences, request)).ok;
+}
+
+export async function syncReminders(
+  preferences: Preferences,
+  request = false,
+): Promise<ReminderSyncResult> {
+  if (Platform.OS === "web") return { ok: false, permissionGranted: null, scheduled: 0 };
   const n = await import("expo-notifications");
   await cancelOwned(n);
-  if (!preferences.reminder) return true;
+  if (!preferences.reminder) return { ok: true, permissionGranted: null, scheduled: 0 };
   if (Platform.OS === "android")
     await n.setNotificationChannelAsync(CHANNEL, {
       name: "Revisões diárias",
@@ -34,14 +47,14 @@ export async function schedule(
   const result = request
     ? await n.requestPermissionsAsync()
     : await n.getPermissionsAsync();
-  if (!result.granted) return false;
+  if (!result.granted) return { ok: false, permissionGranted: false, scheduled: 0 };
   const triggerType = n.SchedulableTriggerInputTypes.DAILY;
   await Promise.all(
     preferences.reminderTimes.slice(0, 3).map((minutes, index) =>
       n.scheduleNotificationAsync({
         content: {
-          title: "Revisão de arquivos",
-          body: `Você pode revisar até ${preferences.batchSize} arquivos quando for conveniente.`,
+          title: "Hora de limpar o celular",
+          body: "Abra o Dustio para revisar sua lista.",
           data: { owner: OWNER, slot: index, screen: "mission" },
         },
         trigger: {
@@ -53,7 +66,11 @@ export async function schedule(
       }),
     ),
   );
-  return true;
+  return {
+    ok: true,
+    permissionGranted: true,
+    scheduled: preferences.reminderTimes.slice(0, 3).length,
+  };
 }
 
 export { CHANNEL as REMINDER_CHANNEL, OWNER as REMINDER_OWNER };

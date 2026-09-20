@@ -9,8 +9,12 @@ import {
   today,
 } from "./model";
 
-const KEY = "@media_cleaner_journal_v3";
-const PREVIOUS_KEYS = ["@media_cleaner_journal_v2", "@media_cleaner_robot_v1"];
+const KEY = "@media_cleaner_journal_v4";
+const PREVIOUS_KEYS = [
+  "@media_cleaner_journal_v3",
+  "@media_cleaner_journal_v2",
+  "@media_cleaner_robot_v1",
+];
 
 function strings(value: unknown): string[] {
   return Array.isArray(value)
@@ -43,7 +47,7 @@ function project(raw: any): Journal {
   const mission = raw?.mission || {};
   const ignoredIds = strings(raw?.ignoredIds ?? raw?.reviewed);
   return {
-    version: 3,
+    version: 4,
     preferences: {
       batchSize,
       types: types.length ? [...types] : [...base.preferences.types],
@@ -62,6 +66,7 @@ function project(raw: any): Journal {
       reviewed: strings(mission.reviewed),
       deleted: Number.isFinite(mission.deleted) ? Math.max(0, mission.deleted) : 0,
       bytes: Number.isFinite(mission.bytes) ? Math.max(0, mission.bytes) : 0,
+      queueIds: strings(mission.queueIds),
     },
   };
 }
@@ -90,7 +95,7 @@ export async function loadJournal(): Promise<Journal> {
       throw new Error("Não foi possível ler seu progresso. Seus dados continuam guardados.");
     }
     const migrated = today(project(parsed));
-    if (sourceKey !== KEY || parsed.version !== 3) await saveJournal(migrated);
+    if (sourceKey !== KEY || parsed.version !== 4) await saveJournal(migrated);
     return migrated;
   }
 
