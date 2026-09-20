@@ -13,6 +13,10 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
+*.credentials
+*.credentials.txt
+credentials.json
 *.p8
 *.p12
 *.key
@@ -36,6 +40,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Local signing credentials
+.keys/
+
 # generated native folders
 /ios
 /android
@@ -44,3 +51,5 @@ yarn-error.*
 legacy-before-bipo.zip
 artifacts/
 bipo-home.png
+
+.temp/

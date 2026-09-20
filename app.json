@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "MediaCleaner",
+    "name": "Dustio",
     "slug": "media-cleaner",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/media-cleaner.png",
     "userInterfaceStyle": "light",
@@ -31,8 +31,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Permitir que o MediaCleaner acesse fotos e vídeos para você revisar e escolher o que manter ou excluir.",
-          "savePhotosPermission": "Permitir que o MediaCleaner salve fotos na biblioteca quando solicitado.",
+          "photosPermission": "Permitir que o Dustio acesse fotos e vídeos para você revisar e escolher o que manter ou excluir.",
+          "savePhotosPermission": "Permitir que o Dustio salve fotos na biblioteca quando solicitado.",
           "granularPermissions": [
             "photo",
             "video",

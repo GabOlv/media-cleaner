@@ -13,7 +13,7 @@ import {
 
 export function libraryUnavailable(types: MediaKind[]): string | null {
   return Platform.OS === "android" && Constants.executionEnvironment === "storeClient" && types.some((kind) => kind !== "audio")
-    ? "O Expo Go no Android não permite acessar fotos e vídeos. Instale a versão Android do MediaCleaner para revisar seus arquivos."
+    ? "O Expo Go no Android não permite acessar fotos e vídeos. Instale a versão Android do Dustio para revisar seus arquivos."
     : null;
 }
 
@@ -41,7 +41,7 @@ export async function permission(
     const error = new Error(
       manifestMissing
         ? "Esta versão do aplicativo não inclui a permissão para os tipos de mídia selecionados. Instale uma versão Android com essas permissões configuradas."
-        : `Não foi possível ${request ? "solicitar" : "consultar"} o acesso às mídias. ${expoGo ? "Instale a versão Android do MediaCleaner para acessar seus arquivos. " : ""}Confira as permissões nas configurações do celular e tente novamente.`,
+        : `Não foi possível ${request ? "solicitar" : "consultar"} o acesso às mídias. ${expoGo ? "Instale a versão Android do Dustio para acessar seus arquivos. " : ""}Confira as permissões nas configurações do celular e tente novamente.`,
     );
     Object.assign(error, { cause });
     throw error;
