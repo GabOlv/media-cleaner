@@ -397,13 +397,12 @@ export function useCleaner() {
           setMessage("Ative as notificações nas configurações do celular para usar os lembretes.");
         }
       }
-      await commit(next);
       if (change.protectedPaths || change.types || change.batchSize) {
         next = setQueue(next, []);
-        await commit(next);
         setFiles([]);
         setSearched(false);
       }
+      await commit(next);
       if (change.types && !demoRef.current) {
         setGranted(false);
         if (!libraryUnavailable(next.preferences.types))

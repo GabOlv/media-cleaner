@@ -37,6 +37,14 @@ export async function syncReminders(
 ): Promise<ReminderSyncResult> {
   if (Platform.OS === "web") return { ok: false, permissionGranted: null, scheduled: 0 };
   const n = await import("expo-notifications");
+  n.setNotificationHandler?.({
+    handleNotification: async () => ({
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
   await cancelOwned(n);
   if (!preferences.reminder) return { ok: true, permissionGranted: null, scheduled: 0 };
   if (Platform.OS === "android")

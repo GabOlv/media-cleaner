@@ -528,6 +528,14 @@ function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, on
             <View style={ui.choiceGrid}>{[1, 2, 3].map((value) => <Choice key={value} label={`${value} ${value === 1 ? "vez" : "vezes"}`} selected={preferences.reminderTimes.length === value} onPress={() => app.updatePreferences({ reminderTimes: normalizeReminderTimes(preferences.reminderTimes, value) })} />)}</View>
             {preferences.reminderTimes.map((time, index) => <Row key={`${index}-${time}`} title={`Lembrete ${index + 1}`} detail={minutesToTime(time)} icon="time-outline" onPress={() => onPickTime(index)} />)}
             <Text style={ui.small}>Horários iguais são ajustados automaticamente em intervalos de 10 minutos.</Text>
+            <Text style={ui.small}>O Android pode entregar o lembrete alguns minutos depois para economizar bateria.</Text>
+            {Platform.OS !== "web" && !app.demo && app.notificationGranted === false && <View style={s.reminderWarning}>
+              <Ionicons name="notifications-off-outline" size={20} color={C.accent} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <Text style={ui.small}>As notificações estão desativadas nas configurações do celular.</Text>
+                <Button label="Abrir configurações" secondary compact onPress={onOpenSystemSettings} />
+              </View>
+            </View>}
           </>}
           {!preferences.reminder && <Text style={ui.small}>Você pode ativar um, dois ou três horários quando quiser.</Text>}
         </View>
@@ -676,6 +684,7 @@ const s = StyleSheet.create({
   deletingLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   quietNote: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 4 },
   infoBox: { backgroundColor: C.surfaceWarm, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 9 },
+  reminderWarning: { backgroundColor: C.surfaceWarm, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 9 },
   empty: { minHeight: 92, alignItems: "center", justifyContent: "center", gap: 8 },
   pathRow: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   pathIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: C.accentPale, alignItems: "center", justifyContent: "center" },

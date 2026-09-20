@@ -4,7 +4,7 @@
     "slug": "media-cleaner",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/media-cleaner.png",
+    "icon": "./assets/dustio-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -12,8 +12,8 @@
     "android": {
       "package": "com.gabriel.mediacleaner",
       "adaptiveIcon": {
-        "backgroundColor": "#F7FAF7",
-        "foregroundImage": "./assets/media-cleaner-adaptive.png"
+        "backgroundColor": "#EDF6EF",
+        "foregroundImage": "./assets/dustio-icon-foreground.png"
       },
       "permissions": [
         "READ_EXTERNAL_STORAGE",
@@ -48,8 +48,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F7FAF7",
-          "image": "./assets/media-cleaner.png",
-          "imageWidth": 160
+          "image": "./assets/dustio-banner.png",
+          "imageWidth": 280,
+          "resizeMode": "contain"
         }
       ],
       "expo-audio",
@@ -57,7 +58,7 @@
       "@react-native-community/datetimepicker"
     ],
     "web": {
-      "favicon": "./assets/media-cleaner.png"
+      "favicon": "./assets/dustio-icon.png"
     }
   }
 }

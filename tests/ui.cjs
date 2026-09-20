@@ -20,7 +20,7 @@ const artifacts = path.resolve(__dirname, "../artifacts");
   const tab = (name) => page.getByRole("tab", { name, exact: true });
   const capture = (name) => page.screenshot({ path: path.join(artifacts, `${name}.png`), fullPage: true });
   const journal = () => page.evaluate(() => {
-    const value = localStorage.getItem("@media_cleaner_journal_v3");
+    const value = localStorage.getItem("@media_cleaner_journal_v4");
     return value ? JSON.parse(value) : null;
   });
 
@@ -80,13 +80,13 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     }
     await page.getByText("Revisão concluída", { exact: true }).waitFor();
     const afterDeletion = await journal();
-    assert.equal(afterDeletion.version, 3);
+    assert.equal(afterDeletion.version, 4);
     assert.equal(afterDeletion.ignoredIds.length, 0, "demo decisions must not persist");
     assert.equal(afterDeletion.mission.reviewed.length, 0, "demo progress must not persist");
     await capture("review-complete");
 
     await page.evaluate(() => {
-      const key = "@media_cleaner_journal_v3";
+      const key = "@media_cleaner_journal_v4";
       const data = JSON.parse(localStorage.getItem(key));
       data.ignoredIds = ["persisted-kept-file"];
       localStorage.setItem(key, JSON.stringify(data));
@@ -102,7 +102,7 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     await page.getByRole("button", { name: "Minuto 30", exact: true }).click();
     await button("Salvar horário").click();
     await page.waitForFunction(() => {
-      const value = localStorage.getItem("@media_cleaner_journal_v3");
+      const value = localStorage.getItem("@media_cleaner_journal_v4");
       if (!value) return false;
       const data = JSON.parse(value);
       return data.preferences.batchSize === 5 && data.preferences.reminderTimes[0] === 510 && data.preferences.reminderTimes.length === 2;
