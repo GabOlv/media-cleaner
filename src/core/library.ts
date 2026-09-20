@@ -120,14 +120,14 @@ export async function scan(
         continue;
       }
       if (isProtected(file.path, preferences.protectedPaths)) continue;
-      files.push(await addSize(file));
-      if (files.length >= window) break;
+      files.push(file);
     }
     if (files.length >= window) break;
     if (!page.hasNextPage || page.endCursor === after) break;
     after = page.endCursor;
   } while (after);
-  return { files: selectWeighted(files, limit, seed), unknown };
+  const selected = selectWeighted(files, limit, seed);
+  return { files: await Promise.all(selected.map(addSize)), unknown };
 }
 
 /** Rehydrates the small persisted daily queue without scanning the whole library. */

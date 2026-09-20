@@ -1,4 +1,4 @@
-// Render the original vector mark for Expo launcher, splash and favicon use.
+// Legacy renderer for the original vector mark. Dustio uses prepare-dustio-assets.cjs.
 const { chromium } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');

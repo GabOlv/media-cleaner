@@ -1,14 +1,14 @@
-# MediaCleaner
+# Dustio
 
 Revisão local de fotos, vídeos e áudios para liberar espaço no aparelho, com histórico e preferências mantidos no próprio dispositivo.
 
 ## Uso
 
-Inicie a revisão para buscar mídias antigas e decidir, uma por vez, o que manter ou excluir. A quantidade padrão é de até 10 arquivos por dia, conforme a data local. Bibliotecas menores podem retornar menos arquivos. O histórico e as preferências ficam no aparelho; arquivos já revisados não reaparecem.
+Inicie a revisão para buscar mídias antigas e decidir, uma por vez, o que manter ou excluir. A quantidade padrão é de até 10 arquivos por dia, conforme a data local. A busca preserva os mais antigos como prioridade e aplica pesos adaptativos entre fotos, vídeos e áudios quando há mais de um tipo disponível. Bibliotecas menores podem retornar menos arquivos. O histórico, a fila do dia e as preferências ficam no aparelho; arquivos já mantidos não reaparecem até a lista de ignorados ser redefinida.
 
 Em Pastas, adicione exclusões para proteger arquivos. Proteger uma pasta também cobre suas subpastas. A lista disponível depende do que a biblioteca do sistema permite acessar. Quando há exclusões, arquivos sem caminho identificável ficam fora da revisão.
 
-Em Ajustes, configure a quantidade por revisão, os tipos de mídia e um, dois ou três horários de lembrete. Alterações de quantidade após iniciar a revisão valem no próximo dia. O lembrete não faz varreduras em segundo plano; a busca ocorre ao iniciar a revisão. A economia de bateria pode atrasar notificações.
+Em Ajustes, configure a quantidade por revisão, os tipos de mídia e um, dois ou três horários de lembrete. Alterações de quantidade após iniciar a revisão valem na próxima busca. O lembrete não faz varreduras em segundo plano; a busca ocorre ao abrir a revisão. A economia de bateria pode atrasar notificações alguns minutos. A fila é revalidada ao voltar ao aplicativo e imediatamente antes de excluir.
 
 A demonstração fica somente em Ajustes, usa arquivos de exemplo e progresso temporário separado dos dados reais. Não exclui arquivos do aparelho nem precisa de rede. No navegador e no Expo Go, use esse modo para experimentar a interface.
 
@@ -58,10 +58,10 @@ npx expo export --platform android --output-dir artifacts/android
 
 Os testes de interface usam Playwright e esperam o servidor web em `http://localhost:8091`. As capturas ficam em `artifacts/`. Testes simulados não substituem verificar permissões, exclusão real e notificações em uma build nativa no Android.
 
-A marca original é um arquivo geométrico com recorte, em verde discreto sobre superfícies neutras. A fonte vetorial está em `assets/media-cleaner.svg`. O PNG `media-cleaner.png` tem fundo opaco `#F7FAF7` e serve ao ícone padrão, splash e favicon. O Android usa `media-cleaner-adaptive.png` como camada de primeiro plano transparente. Para regenerar os dois PNGs de 1024 × 1024:
+A marca do Dustio usa uma pasta verde discreta sobre superfícies neutras. Os arquivos prontos para o Expo estão em `assets/dustio-icon.png`, `assets/dustio-icon-foreground.png` e `assets/dustio-banner.png`. Para regenerá-los a partir dos arquivos locais em `.temp`:
 
 ```sh
-node scripts/render-icon.cjs
+node scripts/prepare-dustio-assets.cjs
 ```
 
 O script usa o Chromium do Playwright; se necessário, instale-o com `npx playwright install chromium`.

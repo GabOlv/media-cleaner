@@ -46,6 +46,9 @@ function project(raw: any): Journal {
   const legacyPaths = strings(oldPreferences.legacyPaths).filter((path) => path.startsWith("/"));
   const mission = raw?.mission || {};
   const ignoredIds = strings(raw?.ignoredIds ?? raw?.reviewed);
+  const reviewedIds = strings(mission.reviewed);
+  const reviewed = new Set(reviewedIds);
+  const ignored = new Set(ignoredIds);
   return {
     version: 4,
     preferences: {
@@ -63,10 +66,10 @@ function project(raw: any): Journal {
     mission: {
       date: typeof mission.date === "string" ? mission.date : base.mission.date,
       target: clampBatchSize(Number(mission.target) || batchSize),
-      reviewed: strings(mission.reviewed),
+      reviewed: reviewedIds,
       deleted: Number.isFinite(mission.deleted) ? Math.max(0, mission.deleted) : 0,
       bytes: Number.isFinite(mission.bytes) ? Math.max(0, mission.bytes) : 0,
-      queueIds: strings(mission.queueIds),
+      queueIds: strings(mission.queueIds).filter((id) => !reviewed.has(id) && !ignored.has(id)),
     },
   };
 }
