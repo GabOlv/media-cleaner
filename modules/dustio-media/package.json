@@ -1,0 +1,8 @@
+{
+  "name": "dustio-media",
+  "version": "0.1.0",
+  "description": "Native media operations used by Dustio.",
+  "main": "src/index.ts",
+  "private": true,
+  "license": "MIT"
+}

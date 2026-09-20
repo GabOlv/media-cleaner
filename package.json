@@ -40,5 +40,10 @@
     "test:ui": "node tests/ui.cjs"
   },
   "private": true,
-  "license": "MIT"
+  "license": "MIT",
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "modules"
+    }
+  }
 }

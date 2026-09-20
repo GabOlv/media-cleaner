@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { Linking, PermissionsAndroid, Platform } from "react-native";
+import { Linking, Platform } from "react-native";
+import { getDustioMediaModule } from "./nativeMedia";
 
-const MEDIA_MANAGEMENT_PROMPTED_KEY = "@media_cleaner_media_management_prompted_v1";
+const MEDIA_MANAGEMENT_PROMPTED_KEY = "@media_cleaner_media_management_prompted_v2";
 
 /** Android's special media-management access is available outside Expo Go on API 31+. */
 export function supportsMediaManagement(): boolean {
@@ -16,8 +17,10 @@ export function supportsMediaManagement(): boolean {
 /** Checks the special access that removes Android's per-file delete confirmation. */
 export async function hasMediaManagementAccess(): Promise<boolean | null> {
   if (!supportsMediaManagement()) return null;
+  const native = getDustioMediaModule();
+  if (!native) return false;
   try {
-    return await PermissionsAndroid.check("android.permission.MANAGE_MEDIA" as any);
+    return Boolean(await native.canManageMedia());
   } catch {
     return false;
   }

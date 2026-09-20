@@ -33,9 +33,9 @@ const asset = (id, uri = `file:///storage/emulated/0/DCIM/${id}.jpg`, mediaType 
   albumId: "camera",
 });
 
-function library(overrides = {}, runtime = "standalone", os = "android") {
+function library(overrides = {}, runtime = "standalone", os = "android", nativeModule = null, version) {
   return load("library", {
-    "react-native": { Platform: { OS: os } },
+    "react-native": { Platform: { OS: os, Version: version } },
     "expo-constants": { executionEnvironment: runtime },
     "expo-media-library/legacy": {
       SortBy: { creationTime: "creationTime" },
@@ -44,10 +44,11 @@ function library(overrides = {}, runtime = "standalone", os = "android") {
       deleteAssetsAsync: async () => true,
       ...overrides,
     },
-      "expo-file-system/legacy": {
+    "expo-file-system/legacy": {
       getInfoAsync: async () => ({ exists: true, size: 42 }),
     },
     "./selection": selection,
+    "./nativeMedia": { getDustioMediaModule: () => nativeModule },
   });
 }
 
@@ -209,6 +210,32 @@ test("device permission errors, empty libraries and deletion failures never retu
   assert.equal(await lib.remove({ id: "real" }), false);
   await assert.rejects(lib.remove({ id: "demo", demo: true }));
   assert.equal(calls, 1);
+});
+
+test("Android 12+ deletion uses Dustio's direct media operation without Expo's confirmation request", async () => {
+  let expoCalls = 0;
+  let nativeCall;
+  const lib = library(
+    {
+      deleteAssetsAsync: async () => {
+        expoCalls++;
+        return true;
+      },
+    },
+    "standalone",
+    "android",
+    {
+      canManageMedia: async () => true,
+      deleteAsset: async (id, kind) => {
+        nativeCall = [id, kind];
+        return true;
+      },
+    },
+    35,
+  );
+  assert.equal(await lib.remove({ id: "42", kind: "audio" }), true);
+  assert.deepEqual(nativeCall, ["42", "audio"]);
+  assert.equal(expoCalls, 0);
 });
 
 test("folder discovery exhausts pages and aggregates parent counts", async () => {

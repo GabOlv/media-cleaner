@@ -46,6 +46,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+modules/**/android/build/
+modules/**/android/.cxx/
 
 # Local verification artifacts and pre-rewrite recovery bundle
 legacy-before-bipo.zip

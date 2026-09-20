@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { MediaFile } from "../core/model";
-import { Button, palette as C, ui } from "./ui";
+import { palette as C, ui } from "./ui";
+
+const AUDIO_WAVEFORM = [
+  8, 14, 21, 12, 28, 17, 10, 24, 15, 31, 19, 11, 26, 16, 22, 13, 30, 18, 9, 24, 14, 27, 18, 11, 23, 16, 29, 13, 20, 9,
+];
 export function MediaPreview({ file }: { file: MediaFile }) {
   const [failed, setFailed] = useState(false);
   const { width } = useWindowDimensions();
@@ -59,24 +63,53 @@ function VideoPreview({ uri, height }: { uri: string; height: number }) {
 function AudioPreview({ uri, height }: { uri: string; height: number }) {
   const player = useAudioPlayer(uri),
     status = useAudioPlayerStatus(player);
+  const duration = Number.isFinite(status.duration) ? status.duration : 0;
+  const progress = duration > 0 ? Math.max(0, Math.min(1, status.currentTime / duration)) : 0;
+  const activeBars = Math.round(progress * AUDIO_WAVEFORM.length);
+  const togglePlayback = () => {
+    if (status.playing) player.pause();
+    else {
+      if (status.didJustFinish) player.seekTo(0);
+      player.play();
+    }
+  };
+
   return (
-    <View style={[s.fallback, { minHeight: height }]}>
-      <Ionicons name="musical-notes-outline" size={52} color={C.accent} />
-      <Text style={ui.h2}>Dê uma escutadinha</Text>
-      <Button
-        label={status.playing ? "Pausar áudio" : "Ouvir áudio"}
-        icon={status.playing ? "pause" : "play"}
-        onPress={() => {
-          if (status.playing) player.pause();
-          else {
-            if (status.didJustFinish) player.seekTo(0);
-            player.play();
-          }
-        }}
-      />
+    <View style={[s.audioPreview, { minHeight: height }]}>
+      <View style={s.audioCard}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={status.playing ? "Pausar áudio" : "Reproduzir áudio"}
+          onPress={togglePlayback}
+          style={({ pressed }) => [s.audioPlay, pressed && s.audioPlayPressed]}
+        >
+          <Ionicons name={status.playing ? "pause" : "play"} size={22} color="#FFFFFF" />
+        </Pressable>
+        <View style={s.audioContent}>
+          <Text style={s.audioTitle}>Áudio</Text>
+          <View accessibilityLabel="Forma de onda do áudio" style={s.waveform}>
+            {AUDIO_WAVEFORM.map((bar, index) => (
+              <View
+                key={`${bar}-${index}`}
+                style={[s.wave, { height: bar }, index < activeBars && s.waveActive]}
+              />
+            ))}
+          </View>
+          <View style={s.audioMeta}>
+            <Text style={s.audioMetaText}>{status.playing ? "Reproduzindo" : "Toque para ouvir"}</Text>
+            {duration > 0 && <Text style={s.audioMetaText}>{formatAudioTime(status.currentTime)} / {formatAudioTime(duration)}</Text>}
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
+
+function formatAudioTime(value: number): string {
+  const seconds = Math.max(0, Math.floor(value));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 const s = StyleSheet.create({
   fallback: {
     minHeight: 270,
@@ -86,6 +119,39 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 20,
   },
+  audioPreview: {
+    backgroundColor: C.surfaceWarm,
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    justifyContent: "center",
+  },
+  audioCard: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  audioPlay: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 2,
+  },
+  audioPlayPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  audioContent: { flex: 1, gap: 7 },
+  audioTitle: { color: C.ink, fontSize: 15, lineHeight: 20, fontWeight: "700" },
+  waveform: { height: 34, flexDirection: "row", alignItems: "center", gap: 3 },
+  wave: { width: 3, borderRadius: 2, backgroundColor: C.border },
+  waveActive: { backgroundColor: C.accent },
+  audioMeta: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  audioMetaText: { color: C.muted, fontSize: 12, lineHeight: 16 },
   demoPhoto: { height: 270, backgroundColor: "#E4EDDF", overflow: "hidden" },
   sun: {
     width: 62,

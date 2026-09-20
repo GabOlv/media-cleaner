@@ -12,6 +12,7 @@ import {
   Preferences,
 } from "./model";
 import { candidateWindow, selectWeighted } from "./selection";
+import { getDustioMediaModule } from "./nativeMedia";
 
 export function libraryUnavailable(types: MediaKind[]): string | null {
   return Platform.OS === "android" && Constants.executionEnvironment === "storeClient" && types.some((kind) => kind !== "audio")
@@ -239,6 +240,21 @@ export async function discover(signal?: AbortSignal, types: MediaKind[] = ["phot
 export async function remove(file: MediaFile): Promise<boolean> {
   if (file.demo || Platform.OS === "web")
     throw new Error("Arquivos de demonstração não podem ser apagados.");
+
+  // On Android 12+, expo-media-library's legacy delete API always falls back
+  // to MediaStore.createDeleteRequest, which asks for confirmation per item.
+  // Dustio's native module uses the granted MANAGE_MEDIA access instead.
+  if (Platform.OS === "android" && Number(Platform.Version) >= 31) {
+    const native = getDustioMediaModule();
+    if (!native) {
+      throw new Error("Esta versão não consegue excluir sem confirmação. Instale a versão Android atual do Dustio.");
+    }
+    if (!(await native.canManageMedia())) {
+      throw new Error("Para excluir sem confirmações repetidas, permita o acesso de gerenciamento de mídia em Ajustes > Permissões.");
+    }
+    return Boolean(await native.deleteAsset(file.id, file.kind));
+  }
+
   return Library.deleteAssetsAsync([file.id]);
 }
 
