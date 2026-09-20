@@ -184,6 +184,20 @@ export function today(journal: Journal): Journal {
     : { ...journal, mission: freshMission(journal.preferences.batchSize) };
 }
 
+/** Starts another review session without resetting today's deletion totals. */
+export function newReview(journal: Journal): Journal {
+  const state = today(journal);
+  return {
+    ...state,
+    mission: {
+      ...state.mission,
+      target: clampBatchSize(state.preferences.batchSize),
+      reviewed: [],
+      queueIds: [],
+    },
+  };
+}
+
 /** Records a resolved item. Kept items become ignored; deleted items do not. */
 export function record(
   journal: Journal,

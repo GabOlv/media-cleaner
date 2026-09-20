@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
@@ -39,7 +38,7 @@ type Screen = "home" | "mission" | "folders" | "protected" | "picker" | "more";
 type RootScreen = "home" | "mission" | "folders" | "more";
 
 const ROOT_SCREENS: RootScreen[] = ["home", "mission", "folders", "more"];
-const BATCH_OPTIONS = [5, 10, 15, 20];
+const BATCH_OPTIONS = [5, 10, 15];
 const MEDIA_LABELS: Record<MediaKind, string> = {
   photo: "Fotos",
   video: "Vídeos",
@@ -237,6 +236,15 @@ function CleanerApp() {
               setCustomBatchOpen(true);
             }}
             onOpenSystemSettings={() => Linking.openSettings().catch(() => app.setMessage("Abra as configurações do aplicativo no celular."))}
+            onOpenDeleteSettings={async () => {
+              try {
+                if (Platform.OS === "android" && Number(Platform.Version) >= 31)
+                  await Linking.sendIntent("android.settings.REQUEST_MANAGE_MEDIA");
+                else await Linking.openSettings();
+              } catch {
+                await Linking.openSettings().catch(() => app.setMessage("Abra as configurações do aplicativo no celular."));
+              }
+            }}
           />
         );
       case "home":
@@ -335,7 +343,7 @@ function HomeScreen({ app, onStart, onSettings, onFolders }: { app: ReturnType<t
   return (
     <>
       <View style={ui.header}>
-        <Text style={ui.h2}>Uma pequena revisão por dia.</Text>
+        <Text style={ui.h2}>Uma pequena revisão por vez.</Text>
         <Text style={ui.body}>Escolha o que realmente não precisa mais. O restante sai da sua lista e não volta a atrapalhar.</Text>
       </View>
       <View style={ui.card}>
@@ -416,7 +424,7 @@ function ReviewScreen({
           <Text style={ui.sectionTitle}>{app.searched ? "Revisão concluída" : "Pronto para começar"}</Text>
           <Text style={ui.body}>{app.searched ? "Não há outros arquivos nesta revisão." : "A busca respeitará as pastas protegidas e os itens que você já decidiu manter."}</Text>
           {!app.searched && <Button label="Buscar arquivos" icon="search-outline" onPress={onStart} disabled={app.busy || app.unsaved} />}
-          {app.searched && <Button label="Voltar ao início" secondary onPress={() => app.setTab("home")} />}
+          {app.searched && <Button label="Fazer nova revisão" icon="refresh-outline" onPress={onStart} disabled={app.busy || app.unsaved} />}
         </View>
       ) : (
         <>
@@ -496,7 +504,7 @@ function FolderPicker({ app, preferences, query, setQuery, onPick, replacing }: 
   );
 }
 
-function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, onCustomBatch, onOpenSystemSettings }: { app: ReturnType<typeof useCleaner>; preferences: Preferences; onProtected: () => void; onReset: () => void; onPickTime: (index: number) => void; onCustomBatch: () => void; onOpenSystemSettings: () => void }) {
+function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, onCustomBatch, onOpenSystemSettings, onOpenDeleteSettings }: { app: ReturnType<typeof useCleaner>; preferences: Preferences; onProtected: () => void; onReset: () => void; onPickTime: (index: number) => void; onCustomBatch: () => void; onOpenSystemSettings: () => void; onOpenDeleteSettings: () => void | Promise<void> }) {
   const batchIsPreset = BATCH_OPTIONS.includes(preferences.batchSize);
   const [demoNotice, setDemoNotice] = useState(false);
   const toggleType = (kind: MediaKind) => {
@@ -519,7 +527,7 @@ function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, on
       <Section title="Tipos de mídia" detail="Escolha o que entra na busca.">
         <View style={ui.card}>{(["photo", "video", "audio"] as MediaKind[]).map((kind) => <SwitchRow key={kind} label={MEDIA_LABELS[kind]} value={preferences.types.includes(kind)} onValueChange={() => toggleType(kind)} />)}</View>
       </Section>
-      <Section title="Lembrete diário" detail="Escolha quantas vezes o aviso pode tocar.">
+      <Section title="Lembretes" detail="Escolha quantas vezes o aviso pode tocar por dia.">
         <View style={ui.card}>
           <SwitchRow label="Ativar lembretes" value={preferences.reminder} onValueChange={(value) => app.updatePreferences({ reminder: value })} />
           {preferences.reminder && <>
@@ -546,6 +554,11 @@ function SettingsScreen({ app, preferences, onProtected, onReset, onPickTime, on
           <Row title="Itens ignorados" detail={`${app.journal?.ignoredIds.length || 0} na lista`} icon="eye-off-outline" onPress={onReset} disabled={!app.journal?.ignoredIds.length} />
         </View>
       </Section>
+      {Platform.OS === "android" && Number(Platform.Version) >= 31 && <Section title="Permissões">
+        <View style={ui.card}>
+          <Row title="Permitir exclusões sem confirmação" detail="Acesso especial do Android, solicitado uma única vez" icon="shield-checkmark-outline" onPress={onOpenDeleteSettings} />
+        </View>
+      </Section>}
       <Section title="Acessibilidade">
         <View style={ui.card}><SwitchRow label="Movimento suave" detail="Reduza as transições se preferir" value={preferences.motion} onValueChange={(value) => app.updatePreferences({ motion: value })} /></View>
       </Section>
@@ -624,9 +637,7 @@ function ConfirmDialog({ visible, title, text, confirmLabel, danger = false, bus
 function TimePickerModal({ visible, value, onCancel, onSave }: { visible: boolean; value: number; onCancel: () => void; onSave: (value: number) => void | Promise<void> }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => { if (visible) setDraft(value); }, [value, visible]);
-  const date = new Date();
-  date.setHours(Math.floor(draft / 60), draft % 60, 0, 0);
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalBackdrop}><View style={s.modalCard}><Text style={ui.h2}>Horário do lembrete</Text><Text style={ui.body}>Escolha a hora e o minuto.</Text>{Platform.OS === "web" ? <WheelTimePicker value={draft} onChange={setDraft} /> : <DateTimePicker value={date} mode="time" display="spinner" is24Hour onChange={(_, selected) => { if (selected) setDraft(selected.getHours() * 60 + selected.getMinutes()); }} />}<View style={s.modalActions}><Button label="Cancelar" secondary onPress={onCancel} /><Button label="Salvar horário" onPress={() => onSave(draft)} /></View></View></KeyboardAvoidingView></Modal>;
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalBackdrop}><View style={s.modalCard}><Text style={ui.h2}>Horário do lembrete</Text><Text style={ui.body}>Escolha a hora e o minuto.</Text><WheelTimePicker value={draft} onChange={setDraft} /><View style={s.modalActions}><Button label="Cancelar" secondary onPress={onCancel} /><Button label="Salvar horário" onPress={() => onSave(draft)} /></View></View></KeyboardAvoidingView></Modal>;
 }
 
 function WheelTimePicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {

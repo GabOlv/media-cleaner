@@ -9,6 +9,7 @@ import {
   Journal,
   localDay,
   MediaFile,
+  newReview,
   Preferences,
   record,
   removeFromQueue,
@@ -267,7 +268,9 @@ export function useCleaner() {
     const controller = new AbortController();
     abort.current = controller;
     try {
-      const next = today(state.current);
+      let next = today(state.current);
+      if (!next.mission.queueIds.length && next.mission.reviewed.length >= next.mission.target)
+        next = newReview(next);
       if (!demoRef.current) {
         const unavailable = libraryUnavailable(next.preferences.types);
         if (unavailable) {

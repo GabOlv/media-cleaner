@@ -22,6 +22,7 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO",
         "READ_MEDIA_AUDIO",
+        "MANAGE_MEDIA",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
       ],

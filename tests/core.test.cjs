@@ -71,11 +71,26 @@ test("kept files become ignored, deleted files update totals, and the next day r
   assert.deepEqual(deleted.mission.reviewed, ["1", "2"]);
   assert.equal(deleted.deleted, 1);
   assert.equal(deleted.bytes, 100);
+  assert.equal(deleted.mission.deleted, 1);
+  assert.equal(deleted.mission.bytes, 100);
   const tomorrow = model.today({ ...deleted, mission: { ...deleted.mission, date: "2000-01-01" } });
   assert.deepEqual(tomorrow.ignoredIds, ["1"]);
   assert.deepEqual(tomorrow.mission.reviewed, []);
   assert.equal(tomorrow.deleted, deleted.deleted);
   assert.equal(model.localDay(new Date(2026, 8, 16, 23, 59)), "2026-09-16");
+});
+
+test("a new review resets only the session and keeps today's totals", () => {
+  const initial = model.freshJournal();
+  const afterDelete = model.record(initial, { id: "deleted", bytes: 100 }, true);
+  const afterKeep = model.record(afterDelete, { id: "kept", bytes: 50 }, false);
+  const next = model.newReview(afterKeep);
+  assert.deepEqual(next.mission.reviewed, []);
+  assert.deepEqual(next.mission.queueIds, []);
+  assert.equal(next.mission.target, next.preferences.batchSize);
+  assert.equal(next.mission.deleted, 1);
+  assert.equal(next.mission.bytes, 100);
+  assert.deepEqual(next.ignoredIds, ["kept"]);
 });
 
 test("reminder slots stay unique and move a collision forward by ten minutes", () => {
