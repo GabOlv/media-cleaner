@@ -2,5 +2,5 @@
   <title>MediaCleaner</title>
   <desc>A geometric file with a folded corner and negative-space center.</desc>
   <!-- Central padding keeps the mark inside Android adaptive launcher masks. -->
-  <path fill="#315b9a" fill-rule="evenodd" d="M368 272H556L704 420V704Q704 752 656 752H368Q320 752 320 704V320Q320 272 368 272ZM392 352V672H632V464H540V352H392Z"/>
+  <path fill="#2E6B50" fill-rule="evenodd" d="M368 272H556L704 420V704Q704 752 656 752H368Q320 752 320 704V320Q320 272 368 272ZM392 352V672H632V464H540V352H392Z"/>
 </svg>

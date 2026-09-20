@@ -13,7 +13,7 @@ import {
 
 export function libraryUnavailable(types: MediaKind[]): string | null {
   return Platform.OS === "android" && Constants.executionEnvironment === "storeClient" && types.some((kind) => kind !== "audio")
-    ? "O Expo Go no Android não permite acessar fotos e vídeos. Instale a versão Android do MediaCleaner para revisar seus arquivos. Você pode explorar a demonstração aqui."
+    ? "O Expo Go no Android não permite acessar fotos e vídeos. Instale a versão Android do MediaCleaner para revisar seus arquivos."
     : null;
 }
 

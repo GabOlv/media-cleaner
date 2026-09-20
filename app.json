@@ -12,7 +12,7 @@
     "android": {
       "package": "com.gabriel.mediacleaner",
       "adaptiveIcon": {
-        "backgroundColor": "#F8FAFC",
+        "backgroundColor": "#F7FAF7",
         "foregroundImage": "./assets/media-cleaner-adaptive.png"
       },
       "permissions": [
@@ -33,7 +33,11 @@
         {
           "photosPermission": "Permitir que o MediaCleaner acesse fotos e vídeos para você revisar e escolher o que manter ou excluir.",
           "savePhotosPermission": "Permitir que o MediaCleaner salve fotos na biblioteca quando solicitado.",
-          "granularPermissions": ["photo", "video", "audio"],
+          "granularPermissions": [
+            "photo",
+            "video",
+            "audio"
+          ],
           "isAccessMediaLocationEnabled": false
         }
       ],
@@ -43,13 +47,14 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F8FAFC",
+          "backgroundColor": "#F7FAF7",
           "image": "./assets/media-cleaner.png",
           "imageWidth": 160
         }
       ],
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "@react-native-community/datetimepicker"
     ],
     "web": {
       "favicon": "./assets/media-cleaner.png"

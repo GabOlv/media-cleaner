@@ -25,7 +25,7 @@ export function MediaPreview({ file }: { file: MediaFile }) {
     <View style={{ backgroundColor: "#E8EDE6" }}>
       {failed ? (
         <View style={s.fallback}>
-          <Ionicons name="image-outline" size={42} color={C.green} />
+          <Ionicons name="image-outline" size={42} color={C.accent} />
           <Text style={ui.body}>Prévia indisponível</Text>
           <Text style={ui.small}>
             Você pode guardar este arquivo para ver depois.
@@ -59,7 +59,7 @@ function AudioPreview({ uri }: { uri: string }) {
     status = useAudioPlayerStatus(player);
   return (
     <View style={s.fallback}>
-      <Ionicons name="musical-notes-outline" size={52} color={C.green} />
+      <Ionicons name="musical-notes-outline" size={52} color={C.accent} />
       <Text style={ui.h2}>Dê uma escutadinha</Text>
       <Button
         label={status.playing ? "Pausar áudio" : "Ouvir áudio"}
@@ -79,7 +79,7 @@ const s = StyleSheet.create({
   fallback: {
     minHeight: 270,
     padding: 25,
-    backgroundColor: C.soft,
+    backgroundColor: C.surfaceWarm,
     alignItems: "center",
     justifyContent: "center",
     gap: 20,

@@ -12,7 +12,7 @@ const assets = path.resolve(__dirname, '..', 'assets');
     // Keep the padded mark transparent for Android launcher masks.
     await page.screenshot({ path: path.join(assets, 'media-cleaner-adaptive.png'), omitBackground: true });
     // Standard/iOS icons are opaque; match the configured splash background.
-    await page.addStyleTag({ content: 'body{background:#F8FAFC}' });
+    await page.addStyleTag({ content: 'body{background:#F7FAF7}' });
     await page.screenshot({ path: path.join(assets, 'media-cleaner.png'), omitBackground: false });
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

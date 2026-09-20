@@ -16,7 +16,7 @@ The owner's request authorizes this direction and identity change. No extra libr
 
 - Name: MediaCleaner. No mascot, XP, levels, streaks or rewards in UI, notifications or persisted current-schema data.
 - Typography: system sans, 24–26px page titles, 15–16px body, 13–14px metadata. Preserve OS font scaling.
-- Color: neutral white/off-white surfaces, near-black primary text, readable slate secondary text and one blue interaction accent. Red only for destructive meaning.
+- Color: neutral white/off-white surfaces with a subtle mint tint, near-black green-tinted primary text, readable secondary text and one deep-green interaction accent. Red only for destructive meaning.
 - Layout: 16–20px horizontal spacing; small corner radii; no decorative shadows, oversized cards, hero or stat grid. Limit reading width on tablets.
 - Touch targets: roughly 48px without enlarging all content. Labels stay visible in bottom navigation. Visible keyboard focus; no icon-only primary actions.
 - Review: preview, filename/location, keep/delete. Native deletion must succeed before advancing. Cancel leaves data unchanged. Plain inline status, no celebration interruption or fake percentage.

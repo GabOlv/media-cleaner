@@ -1,6 +1,6 @@
 # MediaCleaner
 
-Revisão local de fotos, vídeos e áudios para liberar espaço no aparelho. Sem conta, anúncios ou backend.
+Revisão local de fotos, vídeos e áudios para liberar espaço no aparelho, com histórico e preferências mantidos no próprio dispositivo.
 
 ## Uso
 
@@ -8,9 +8,9 @@ Inicie a revisão para buscar mídias antigas e decidir, uma por vez, o que mant
 
 Em Pastas, adicione exclusões para proteger arquivos. Proteger uma pasta também cobre suas subpastas. A lista disponível depende do que a biblioteca do sistema permite acessar. Quando há exclusões, arquivos sem caminho identificável ficam fora da revisão.
 
-Em Ajustes, configure a quantidade diária, os tipos de mídia e o lembrete local. Alterações de quantidade após iniciar a revisão valem no próximo dia. O lembrete não faz varreduras em segundo plano; a busca ocorre ao iniciar a revisão. A economia de bateria pode atrasar notificações.
+Em Ajustes, configure a quantidade por revisão, os tipos de mídia e um, dois ou três horários de lembrete. Alterações de quantidade após iniciar a revisão valem no próximo dia. O lembrete não faz varreduras em segundo plano; a busca ocorre ao iniciar a revisão. A economia de bateria pode atrasar notificações.
 
-A demonstração usa ilustrações locais e progresso temporário, separado dos dados reais. Não exclui arquivos do aparelho nem precisa de rede. No navegador e no Expo Go, use esse modo para experimentar a interface.
+A demonstração fica somente em Ajustes, usa arquivos de exemplo e progresso temporário separado dos dados reais. Não exclui arquivos do aparelho nem precisa de rede. No navegador e no Expo Go, use esse modo para experimentar a interface.
 
 ## Executar
 
@@ -38,7 +38,7 @@ npm run web -- --port 8091
 
 ## Permissões e limites
 
-O plugin `expo-media-library` declara explicitamente `granularPermissions: ["photo", "video", "audio"]` e `isAccessMediaLocationEnabled: false`. As permissões concedidas pelo usuário e as restrições do sistema determinam quais arquivos ficam disponíveis. Veja a [referência de MediaLibrary do SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/media-library/).
+O plugin `expo-media-library` declara explicitamente `granularPermissions: ["photo", "video", "audio"]` e `isAccessMediaLocationEnabled: false`. As permissões concedidas pelo usuário e as restrições do sistema determinam quais arquivos ficam disponíveis. Veja a [referência de MediaLibrary legada do SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/media-library-legacy/).
 
 A biblioteca do sistema não representa acesso irrestrito ao armazenamento. Pastas vazias, arquivos privados de outros aplicativos e mídias não autorizadas podem não aparecer. O foco é Android; caminhos, álbuns, permissões e exclusões no iOS precisam de validação em aparelho. O navegador não oferece acesso à biblioteca nativa nem aos lembretes locais do aplicativo.
 
@@ -58,7 +58,7 @@ npx expo export --platform android --output-dir artifacts/android
 
 Os testes de interface usam Playwright e esperam o servidor web em `http://localhost:8091`. As capturas ficam em `artifacts/`. Testes simulados não substituem verificar permissões, exclusão real e notificações em uma build nativa no Android.
 
-A marca original é um arquivo geométrico com recorte, em azul discreto sobre superfícies neutras. A fonte vetorial está em `assets/media-cleaner.svg`. O PNG `media-cleaner.png` tem fundo opaco `#F8FAFC` e serve ao ícone padrão, splash e favicon. O Android usa `media-cleaner-adaptive.png` como camada de primeiro plano transparente. Para regenerar os dois PNGs de 1024 × 1024:
+A marca original é um arquivo geométrico com recorte, em verde discreto sobre superfícies neutras. A fonte vetorial está em `assets/media-cleaner.svg`. O PNG `media-cleaner.png` tem fundo opaco `#F7FAF7` e serve ao ícone padrão, splash e favicon. O Android usa `media-cleaner-adaptive.png` como camada de primeiro plano transparente. Para regenerar os dois PNGs de 1024 × 1024:
 
 ```sh
 node scripts/render-icon.cjs

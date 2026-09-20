@@ -16,64 +16,64 @@ import {
 import { schedule } from "./reminders";
 
 export type Tab = "home" | "mission" | "folders" | "more";
-export function errorText(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "Algo não deu certo. Tente novamente.";
+
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Algo não deu certo. Tente novamente.";
 }
+
 export function useCleaner() {
-  const [journal, setJournal] = useState<Journal | null>(null),
-    state = useRef<Journal | null>(null);
+  const [journal, setJournal] = useState<Journal | null>(null);
+  const state = useRef<Journal | null>(null);
   const [tab, setTab] = useState<Tab>("home");
-  const [demo, setDemo] = useState(false),
-    demoRef = useRef(false),
-    real = useRef<Journal | null>(null);
-  const [granted, setGranted] = useState(false),
-    [reduced, setReduced] = useState(false);
-  const [busy, setBusy] = useState(false),
-    lock = useRef(false);
-  const [message, setMessage] = useState(""),
-    [files, setFiles] = useState<MediaFile[]>([]),
-    [searched, setSearched] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const demoRef = useRef(false);
+  const real = useRef<Journal | null>(null);
+  const [granted, setGranted] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const [message, setMessage] = useState("");
+  const [files, setFiles] = useState<MediaFile[]>([]);
+  const [searched, setSearched] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [folders, setFolders] = useState<Folder[]>([]),
-    [folderLoading, setFolderLoading] = useState(false),
-    [folderError, setFolderError] = useState("");
-  const abort = useRef<AbortController | null>(null),
-    folderAbort = useRef<AbortController | null>(null);
-  const pending = useRef<Journal | null>(null),
-    [unsaved, setUnsaved] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folderLoading, setFolderLoading] = useState(false);
+  const [folderError, setFolderError] = useState("");
+  const [unsaved, setUnsaved] = useState(false);
+  const abort = useRef<AbortController | null>(null);
+  const folderAbort = useRef<AbortController | null>(null);
+  const pending = useRef<Journal | null>(null);
+
   const publish = (next: Journal) => {
     state.current = next;
     setJournal(next);
   };
+
   const commit = async (next: Journal) => {
     if (!demoRef.current) await saveJournal(next);
     publish(next);
   };
+
   const initialize = useCallback(async () => {
     try {
       const loaded = await loadJournal();
       publish(loaded);
       if (Platform.OS !== "web")
         schedule(loaded.preferences).catch(() =>
-          setMessage("Seu lembrete não pôde ser agendado. Confira os Ajustes."),
+          setMessage("O lembrete não pôde ser atualizado. Confira os Ajustes."),
         );
       const unavailable = libraryUnavailable(loaded.preferences.types);
       setGranted(false);
-      if (!unavailable)
-        setGranted(await permission(false, loaded.preferences.types));
+      if (!unavailable) setGranted(await permission(false, loaded.preferences.types));
     } catch (error) {
       setMessage(errorText(error));
     }
   }, []);
+
   useEffect(() => {
     initialize();
     AccessibilityInfo.isReduceMotionEnabled().then(setReduced);
-    const motion = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setReduced,
-    );
+    const motion = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
     const resume = AppState.addEventListener("change", async (value) => {
       if (value !== "active" || lock.current || demoRef.current) return;
       if (state.current && state.current.mission.date !== localDay()) {
@@ -97,16 +97,15 @@ export function useCleaner() {
       folderAbort.current?.abort();
     };
   }, [initialize]);
+
   useEffect(() => {
     if (Platform.OS === "web") return;
-    let dispose: (() => void) | undefined,
-      canceled = false;
+    let dispose: (() => void) | undefined;
+    let canceled = false;
     import("expo-notifications")
       .then(async (n) => {
         if (canceled) return;
-        const sub = n.addNotificationResponseReceivedListener(() =>
-          setTab("mission"),
-        );
+        const sub = n.addNotificationResponseReceivedListener(() => setTab("mission"));
         dispose = () => sub.remove();
         const response = await n.getLastNotificationResponseAsync();
         if (!canceled && response) {
@@ -120,6 +119,7 @@ export function useCleaner() {
       dispose?.();
     };
   }, []);
+
   async function access() {
     if (lock.current) return;
     lock.current = true;
@@ -128,23 +128,21 @@ export function useCleaner() {
       setMessage("");
       const ok = await permission(true, state.current?.preferences.types);
       setGranted(ok);
-      if (!ok)
-        setMessage(
-          "O acesso não foi liberado. Você pode autorizá-lo nas configurações do celular.",
-        );
-    } catch (e) {
+      if (!ok) setMessage("O acesso não foi liberado. Confira as permissões do aplicativo.");
+    } catch (error) {
       setGranted(false);
-      setMessage(errorText(e));
+      setMessage(errorText(error));
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
+
   async function startMission() {
     if (lock.current || !state.current || pending.current) return;
     if (state.current.preferences.legacyPaths?.length) {
-      setMessage('Confira as pastas da versão antiga antes da primeira revisão.');
-      setTab('folders');
+      setMessage("Confira as pastas da versão antiga antes da primeira revisão.");
+      setTab("folders");
       return;
     }
     lock.current = true;
@@ -156,116 +154,129 @@ export function useCleaner() {
     try {
       const next = today(state.current);
       await commit(next);
-      const remaining = Math.max(
-        0,
-        next.mission.target - next.mission.reviewed.length,
-      );
+      const remaining = Math.max(0, next.mission.target - next.mission.reviewed.length);
+      const excluded = [...new Set([...next.ignoredIds, ...next.mission.reviewed])];
       const result = demoRef.current
         ? {
             files: demoFiles
               .filter(
-                (f) =>
-                  !next.reviewed.includes(f.id) &&
-                  !isProtected(f.path, next.preferences.protectedPaths),
+                (file) =>
+                  !excluded.includes(file.id) &&
+                  !isProtected(file.path, next.preferences.protectedPaths),
               )
               .slice(0, remaining),
             unknown: 0,
           }
-        : await scan(
-            next.preferences,
-            next.reviewed,
-            remaining,
-            controller.signal,
-          );
+        : await scan(next.preferences, excluded, remaining, controller.signal);
       if (controller.signal.aborted) return;
-      // A small library still gets a finishable mission; tomorrow uses the chosen batch size again.
       const available = next.mission.reviewed.length + result.files.length;
-      if (available > 0 && available < next.mission.target) {
-        await commit({
-          ...next,
-          mission: { ...next.mission, target: available },
-        });
-      }
+      if (available > 0 && available < next.mission.target)
+        await commit({ ...next, mission: { ...next.mission, target: available } });
       setFiles(result.files);
       setSearched(true);
       if (result.unknown)
-        setMessage(
-          "Alguns arquivos sem pasta identificável foram deixados de fora para respeitar suas pastas protegidas.",
-        );
-    } catch (e) {
-      if (!controller.signal.aborted) setMessage(errorText(e));
+        setMessage("Alguns arquivos sem pasta identificável ficaram fora para respeitar suas proteções.");
+    } catch (error) {
+      if (!controller.signal.aborted) setMessage(errorText(error));
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
-  async function decide(file: MediaFile, deletion: boolean) {
+
+  async function completeReview(selectedIds: string[]) {
     if (lock.current || !state.current || pending.current) return;
+    const selected = files.filter((file) => selectedIds.includes(file.id));
+    const ignored = files.filter((file) => !selectedIds.includes(file.id));
     lock.current = true;
     setBusy(true);
-    let removed = false;
+    setDeleting(selected.length > 0);
+    let next = state.current;
+    const failed: MediaFile[] = [];
+    let deletedCount = 0;
+    let firstError = "";
     try {
-      if (deletion) {
-        setDeleting(true);
-        removed = demoRef.current || (await remove(file));
-        if (!removed) {
-          setMessage("Exclusão cancelada. O arquivo continua aqui.");
-          return;
+      for (const file of selected) {
+        try {
+          const removed = demoRef.current || (await remove(file));
+          if (!removed) {
+            failed.push(file);
+            continue;
+          }
+          next = record(next, file, true);
+          deletedCount++;
+        } catch (error) {
+          failed.push(file);
+          if (!firstError) firstError = errorText(error);
         }
       }
-      const next = record(state.current, file, deletion);
+      for (const file of ignored) next = record(next, file, false);
       try {
         await commit(next);
-      } catch (e) {
-        if (removed) {
-          pending.current = next;
-          publish(next);
-          setUnsaved(true);
-          setFiles((list) => list.filter((f) => f.id !== file.id));
-        }
-        throw e;
+      } catch (error) {
+        pending.current = next;
+        publish(next);
+        setUnsaved(true);
+        setFiles(failed);
+        throw error;
       }
-      setFiles((list) => list.filter((f) => f.id !== file.id));
-      setMessage(
-        deletion
-          ? "Arquivo excluído."
-          : "Arquivo mantido.",
-      );
-    } catch (e) {
-      setMessage(
-        removed
-          ? "O arquivo foi excluído, mas não consegui salvar o progresso. Toque em Salvar novamente."
-          : errorText(e),
-      );
+      setFiles(failed);
+      setSearched(true);
+      if (failed.length) {
+        setMessage(firstError || `${failed.length} arquivo(s) não foram excluídos e continuam na lista.`);
+      } else if (deletedCount) {
+        setMessage(`${deletedCount} arquivo(s) excluído(s).`);
+      } else {
+        setMessage(`${ignored.length} arquivo(s) ignorado(s) nesta revisão.`);
+      }
+    } catch (error) {
+      if (pending.current) setMessage("A operação foi concluída, mas o progresso não foi salvo. Toque em Salvar novamente.");
+      else if (!firstError) setMessage(errorText(error));
     } finally {
       setDeleting(false);
       lock.current = false;
       setBusy(false);
     }
   }
+
+  async function resetIgnored() {
+    if (!state.current || lock.current || pending.current) return;
+    lock.current = true;
+    setBusy(true);
+    try {
+      await commit({ ...state.current, ignoredIds: [] });
+      setFiles([]);
+      setSearched(false);
+      setMessage("A lista de itens ignorados foi redefinida.");
+    } catch (error) {
+      setMessage(errorText(error));
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+
   async function updatePreferences(change: Partial<Preferences>) {
     if (!state.current || lock.current || pending.current) return;
     lock.current = true;
     setBusy(true);
     try {
-      const next = {
+      let next: Journal = {
         ...state.current,
         preferences: { ...state.current.preferences, ...change },
       };
       if (change.batchSize && next.mission.reviewed.length === 0)
-        next.mission = { ...next.mission, target: change.batchSize };
+        next = { ...next, mission: { ...next.mission, target: change.batchSize } };
       if (
         (change.reminder !== undefined ||
-          change.time !== undefined ||
+          change.reminderTimes !== undefined ||
           change.batchSize !== undefined) &&
-        !demoRef.current
+        !demoRef.current && Platform.OS !== "web"
       ) {
         const ok = await schedule(next.preferences, change.reminder === true);
         if (!ok && next.preferences.reminder) {
-          next.preferences.reminder = false;
-          setMessage(
-            "Ative as notificações nos ajustes do celular para receber seu lembrete.",
-          );
+          next = { ...next, preferences: { ...next.preferences, reminder: false } };
+          setMessage("Ative as notificações nas configurações do celular para usar os lembretes.");
         }
       }
       await commit(next);
@@ -275,16 +286,17 @@ export function useCleaner() {
       }
       if (change.types && !demoRef.current) {
         setGranted(false);
-        setMessage("");
-        setGranted(await permission(false, next.preferences.types));
+        if (!libraryUnavailable(next.preferences.types))
+          setGranted(await permission(false, next.preferences.types));
       }
-    } catch (e) {
-      setMessage(errorText(e));
+    } catch (error) {
+      setMessage(errorText(error));
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
+
   async function loadFolders() {
     setFolderError("");
     setFolderLoading(true);
@@ -302,12 +314,13 @@ export function useCleaner() {
           ]
         : await discover(controller.signal, state.current?.preferences.types);
       if (!controller.signal.aborted) setFolders(list);
-    } catch (e) {
-      if (!controller.signal.aborted) setFolderError(errorText(e));
+    } catch (error) {
+      if (!controller.signal.aborted) setFolderError(errorText(error));
     } finally {
       if (!controller.signal.aborted) setFolderLoading(false);
     }
   }
+
   function switchDemo() {
     if (lock.current || pending.current) return;
     if (demoRef.current) {
@@ -325,16 +338,18 @@ export function useCleaner() {
     setMessage("");
     setTab("home");
   }
+
   async function retrySave() {
     try {
       if (pending.current) await saveJournal(pending.current);
       pending.current = null;
       setUnsaved(false);
       setMessage("Progresso salvo.");
-    } catch (e) {
-      setMessage(errorText(e));
+    } catch (error) {
+      setMessage(errorText(error));
     }
   }
+
   return {
     journal,
     tab,
@@ -357,7 +372,8 @@ export function useCleaner() {
     initialize,
     access,
     startMission,
-    decide,
+    completeReview,
+    resetIgnored,
     updatePreferences,
     loadFolders,
     switchDemo,
