@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
-  Image,
+  Animated,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -20,6 +20,7 @@ import {
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { features } from "./src/config/features";
 import { Button, palette as C, Progress, Row, Section, ui } from "./src/components/ui";
+import { MediaPreview } from "./src/components/MediaPreview";
 import { useCleaner } from "./src/core/useCleaner";
 import {
   clampBatchSize,
@@ -31,7 +32,6 @@ import {
   protect,
   setReminderTime,
   shortPath,
-  timeToMinutes,
 } from "./src/core/model";
 import { formatBytes, formatRelativeDate } from "./src/utils/formatters";
 
@@ -60,8 +60,7 @@ function CleanerApp() {
   const lastTab = useRef(app.tab);
   const [screen, setScreen] = useState<Screen>("home");
   const [history, setHistory] = useState<Screen[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [timeSlot, setTimeSlot] = useState<number | null>(null);
   const [customBatchOpen, setCustomBatchOpen] = useState(false);
@@ -85,10 +84,6 @@ function CleanerApp() {
       setHistory([]);
     }
   }, [app.tab]);
-
-  useEffect(() => {
-    setSelectedIds(app.files.map((file) => file.id));
-  }, [app.files]);
 
   useEffect(() => {
     if ((screen === "folders" || screen === "picker") && folderLoadedFor !== screen) {
@@ -125,17 +120,19 @@ function CleanerApp() {
     await app.startMission();
   }
 
-  async function finishReview() {
-    if (selectedIds.length === 0) {
-      await app.completeReview([]);
-      return;
-    }
-    setConfirmDelete(true);
+  async function keepFile(file: MediaFile) {
+    await app.completeReview([], [file.id]);
+  }
+
+  function requestDelete(file: MediaFile) {
+    setConfirmDeleteId(file.id);
   }
 
   async function confirmDeletion() {
-    setConfirmDelete(false);
-    await app.completeReview(selectedIds);
+    if (!confirmDeleteId) return;
+    const fileId = confirmDeleteId;
+    setConfirmDeleteId(null);
+    await app.completeReview([fileId], [fileId]);
   }
 
   async function addProtectedFolder(path: string) {
@@ -179,10 +176,9 @@ function CleanerApp() {
           <ReviewScreen
             app={app}
             preferences={preferences}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
             onStart={beginReview}
-            onFinish={finishReview}
+            onKeep={keepFile}
+            onDelete={requestDelete}
           />
         );
       case "folders":
@@ -263,7 +259,6 @@ function CleanerApp() {
           {history.length > 0 && <Ionicons name="chevron-back" size={24} color={C.ink} />}
         </Pressable>
         <View style={s.topBarText}>
-          <Text style={ui.eyebrow}>CARROTCLEANER</Text>
           <Text style={ui.title}>{headerTitle[screen]}</Text>
         </View>
         <View style={s.topBarSpacer} />
@@ -273,7 +268,7 @@ function CleanerApp() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {app.message ? <Message text={app.message} /> : null}
+        {app.message ? <Message text={app.message} transient={app.message.includes("arquivo(s) excluído(s).")} onDismiss={() => app.setMessage("")} motion={!app.reduced} /> : null}
         {app.unsaved ? (
           <View style={s.unsaved}>
             <Text style={[ui.small, { flex: 1 }]}>A última revisão terminou, mas ainda não foi salva.</Text>
@@ -285,13 +280,13 @@ function CleanerApp() {
       <BottomNav active={activeRoot} onNavigate={navigate} bottomInset={insets.bottom} />
 
       <ConfirmDialog
-        visible={confirmDelete}
-        title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? "arquivo" : "arquivos"}?`}
-        text="Os arquivos serão enviados para a lixeira do celular, quando o sistema oferecer esse recurso. Essa escolha não poderá ser desfeita pelo MediaCleaner."
-        confirmLabel="Excluir selecionados"
+        visible={confirmDeleteId !== null}
+        title="Excluir este arquivo?"
+        text="O arquivo será enviado para a lixeira do celular, quando o sistema oferecer esse recurso. Essa escolha não poderá ser desfeita pelo MediaCleaner."
+        confirmLabel="Excluir arquivo"
         danger
         busy={app.deleting || app.busy}
-        onCancel={() => setConfirmDelete(false)}
+        onCancel={() => setConfirmDeleteId(null)}
         onConfirm={confirmDeletion}
       />
       <ConfirmDialog
@@ -372,33 +367,31 @@ function HomeScreen({ app, onStart, onSettings, onFolders }: { app: ReturnType<t
 function ReviewScreen({
   app,
   preferences,
-  selectedIds,
-  setSelectedIds,
   onStart,
-  onFinish,
+  onKeep,
+  onDelete,
 }: {
   app: ReturnType<typeof useCleaner>;
   preferences: Preferences;
-  selectedIds: string[];
-  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
   onStart: () => void;
-  onFinish: () => void;
+  onKeep: (file: MediaFile) => void | Promise<void>;
+  onDelete: (file: MediaFile) => void;
 }) {
   const journal = app.journal!;
   const target = journal.mission.target;
   const reviewed = Math.min(target, journal.mission.reviewed.length);
   const hasFiles = app.files.length > 0;
-  const toggle = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const selectAll = () => setSelectedIds(selectedIds.length === app.files.length ? [] : app.files.map((file) => file.id));
+  const currentFile = app.files[0];
+  const currentNumber = Math.min(target, reviewed + 1);
 
   return (
     <>
       <View style={ui.header}>
-        <Text style={ui.h2}>{app.demo ? "Revisão de demonstração" : "Arquivos encontrados"}</Text>
-        <Text style={ui.body}>Os itens ficam selecionados por padrão. Desmarque o que deseja manter.</Text>
+        <Text style={ui.h2}>{app.demo ? "Revisão de demonstração" : "Revise um arquivo por vez"}</Text>
+        <Text style={ui.body}>Veja, ouça e decida com calma. O próximo arquivo aparece depois da sua escolha.</Text>
       </View>
       <View style={ui.card}>
-        <View style={ui.between}><Text style={ui.sectionTitle}>{reviewed} de {target} revisados</Text><Text style={ui.small}>{app.files.length} nesta lista</Text></View>
+        <View style={ui.between}><Text style={ui.sectionTitle}>{hasFiles ? `${currentNumber} de ${target}` : `${reviewed} de ${target}`}</Text><Text style={ui.small}>{app.files.length} restante(s)</Text></View>
         <Progress value={target ? reviewed / target : 0} label={`${reviewed} de ${target} revisados`} motion={preferences.motion && !app.reduced} />
       </View>
 
@@ -428,39 +421,23 @@ function ReviewScreen({
         </View>
       ) : (
         <>
-          <View style={ui.between}>
-            <Text style={ui.sectionTitle}>Selecione para excluir</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={selectedIds.length === app.files.length ? "Desmarcar todos" : "Selecionar todos"} onPress={selectAll} style={s.linkButton}>
-              <Text style={s.linkText}>{selectedIds.length === app.files.length ? "Desmarcar todos" : "Selecionar todos"}</Text>
-            </Pressable>
+          <View style={s.reviewMediaCard}>
+            {currentFile && <MediaPreview file={currentFile} />}
+            {currentFile && <View style={s.mediaMeta}>
+              <Text style={s.fileName} numberOfLines={2}>{currentFile.filename}</Text>
+              <Text style={ui.small}>{MEDIA_LABELS[currentFile.kind]} · {formatRelativeDate(currentFile.created)} · {formatBytes(currentFile.bytes)}</Text>
+              <Text style={s.filePath} numberOfLines={2}>{currentFile.path ? shortPath(currentFile.path) : "Pasta não identificada"}</Text>
+            </View>}
           </View>
-          <View style={ui.card}>
-            {app.files.map((file) => <FileRow key={file.id} file={file} selected={selectedIds.includes(file.id)} onPress={() => toggle(file.id)} />)}
+          <View style={s.reviewActions}>
+            <View style={s.actionButtonWrap}><Button label="Manter" secondary icon="bookmark-outline" onPress={() => currentFile && onKeep(currentFile)} disabled={app.busy || app.unsaved} /></View>
+            <View style={s.actionButtonWrap}><Button label="Excluir" danger icon="trash-outline" onPress={() => currentFile && onDelete(currentFile)} disabled={app.busy || app.unsaved} /></View>
           </View>
-          <View style={s.reviewFooter}>
-            <Text style={ui.small}>{selectedIds.length ? `${selectedIds.length} selecionado(s) para excluir` : "Nenhum arquivo será excluído"}</Text>
-            <Button label={selectedIds.length ? "Excluir selecionados" : "Guardar e continuar"} danger={selectedIds.length > 0} secondary={selectedIds.length === 0} icon={selectedIds.length ? "trash-outline" : "bookmark-outline"} onPress={onFinish} disabled={app.busy || app.unsaved} />
-            {app.deleting && <View style={s.deletingLine}><ActivityIndicator color={C.accent} /><Text style={ui.small}>Excluindo arquivos selecionados…</Text></View>}
-          </View>
+          {app.deleting && <View style={s.deletingLine}><ActivityIndicator color={C.accent} /><Text style={ui.small}>Excluindo arquivo…</Text></View>}
         </>
       )}
-      <View style={s.quietNote}><Ionicons name="lock-closed-outline" size={16} color={C.muted} /><Text style={[ui.small, { flex: 1 }]}>Itens desmarcados ficam fora das próximas buscas até você redefinir a lista em Ajustes.</Text></View>
+      <View style={s.quietNote}><Ionicons name="lock-closed-outline" size={16} color={C.muted} /><Text style={[ui.small, { flex: 1 }]}>Ao escolher Manter, o arquivo sai das próximas buscas até você redefinir a lista em Ajustes.</Text></View>
     </>
-  );
-}
-
-function FileRow({ file, selected, onPress }: { file: MediaFile; selected: boolean; onPress: () => void }) {
-  const icon: Record<MediaKind, keyof typeof Ionicons.glyphMap> = { photo: "image-outline", video: "videocam-outline", audio: "musical-notes-outline" };
-  return (
-    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} accessibilityLabel={`${file.filename}, ${selected ? "selecionado para excluir" : "será mantido"}`} onPress={onPress} style={({ pressed }) => [s.fileRow, selected && s.fileRowSelected, pressed && { opacity: 0.72 }]}>
-      {file.kind === "photo" && file.uri ? <Image source={{ uri: file.uri }} style={s.thumb} resizeMode="cover" /> : <View style={s.thumbIcon}><Ionicons name={icon[file.kind]} size={22} color={C.accent} /></View>}
-      <View style={s.fileInfo}>
-        <Text style={s.fileName} numberOfLines={1}>{file.filename}</Text>
-        <Text style={ui.small} numberOfLines={1}>{MEDIA_LABELS[file.kind]} · {formatRelativeDate(file.created)}</Text>
-        <Text style={s.filePath} numberOfLines={1}>{file.path ? shortPath(file.path) : "Pasta não identificada"} · {formatBytes(file.bytes)}</Text>
-      </View>
-      <View style={[ui.checkbox, selected && ui.checkboxSelected]}>{selected && <Ionicons name="checkmark" size={19} color="#FFFFFF" />}</View>
-    </Pressable>
   );
 }
 
@@ -585,8 +562,42 @@ function Stat({ label, value, icon }: { label: string; value: string; icon: keyo
   return <View style={s.stat}><Ionicons name={icon} size={19} color={C.accent} /><Text style={s.statValue}>{value}</Text><Text style={ui.small}>{label}</Text></View>;
 }
 
-function Message({ text }: { text: string }) {
-  return <View style={s.message}><Ionicons name="information-circle-outline" size={19} color={C.accent} /><Text style={[ui.small, { flex: 1 }]}>{text}</Text></View>;
+function Message({ text, transient = false, onDismiss, motion = true }: { text: string; transient?: boolean; onDismiss?: () => void; motion?: boolean }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const offset = useRef(new Animated.Value(-6)).current;
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+  useEffect(() => {
+    opacity.stopAnimation();
+    offset.stopAnimation();
+    if (motion) {
+      opacity.setValue(0);
+      offset.setValue(-6);
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: false }),
+        Animated.timing(offset, { toValue: 0, duration: 180, useNativeDriver: false }),
+      ]).start();
+    } else {
+      opacity.setValue(1);
+      offset.setValue(0);
+    }
+    if (!transient) return;
+    const timer = setTimeout(() => {
+      if (!motion) {
+        opacity.setValue(0);
+        dismissRef.current?.();
+        return;
+      }
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0, duration: 240, useNativeDriver: false }),
+        Animated.timing(offset, { toValue: -6, duration: 240, useNativeDriver: false }),
+      ]).start(({ finished }) => {
+        if (finished) dismissRef.current?.();
+      });
+    }, 3600);
+    return () => clearTimeout(timer);
+  }, [motion, opacity, offset, text, transient]);
+  return <Animated.View accessibilityLiveRegion="polite" style={[s.message, { opacity, transform: [{ translateY: offset }] }]}><Ionicons name="information-circle-outline" size={19} color={C.accent} /><Text style={[ui.small, { flex: 1 }]}>{text}</Text></Animated.View>;
 }
 
 function BottomNav({ active, onNavigate, bottomInset }: { active: RootScreen; onNavigate: (screen: RootScreen) => void; bottomInset: number }) {
@@ -605,17 +616,37 @@ function ConfirmDialog({ visible, title, text, confirmLabel, danger = false, bus
 
 function TimePickerModal({ visible, value, onCancel, onSave }: { visible: boolean; value: number; onCancel: () => void; onSave: (value: number) => void | Promise<void> }) {
   const [draft, setDraft] = useState(value);
-  const [webTime, setWebTime] = useState(minutesToTime(value));
-  useEffect(() => { if (visible) { setDraft(value); setWebTime(minutesToTime(value)); } }, [value, visible]);
+  useEffect(() => { if (visible) setDraft(value); }, [value, visible]);
   const date = new Date();
   date.setHours(Math.floor(draft / 60), draft % 60, 0, 0);
-  function save() {
-    const parsed = timeToMinutes(webTime);
-    if (Platform.OS === "web" && parsed === null) return;
-    onSave(Platform.OS === "web" ? parsed ?? draft : draft);
-  }
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalBackdrop}><View style={s.modalCard}><Text style={ui.h2}>Horário do lembrete</Text><Text style={ui.body}>Escolha a hora e o minuto.</Text>{Platform.OS === "web" ? <TextInput accessibilityLabel="Horário" value={webTime} onChangeText={setWebTime} placeholder="20:00" style={ui.input} keyboardType="numbers-and-punctuation" maxLength={5} /> : <DateTimePicker value={date} mode="time" display="spinner" is24Hour onChange={(_, selected) => { if (selected) setDraft(selected.getHours() * 60 + selected.getMinutes()); }} />}{Platform.OS === "web" && !timeToMinutes(webTime) && <Text style={s.errorText}>Use um horário como 08:30 ou 20:00.</Text>}<View style={s.modalActions}><Button label="Cancelar" secondary onPress={onCancel} /><Button label="Salvar horário" onPress={save} /></View></View></KeyboardAvoidingView></Modal>;
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalBackdrop}><View style={s.modalCard}><Text style={ui.h2}>Horário do lembrete</Text><Text style={ui.body}>Escolha a hora e o minuto.</Text>{Platform.OS === "web" ? <WheelTimePicker value={draft} onChange={setDraft} /> : <DateTimePicker value={date} mode="time" display="spinner" is24Hour onChange={(_, selected) => { if (selected) setDraft(selected.getHours() * 60 + selected.getMinutes()); }} />}<View style={s.modalActions}><Button label="Cancelar" secondary onPress={onCancel} /><Button label="Salvar horário" onPress={() => onSave(draft)} /></View></View></KeyboardAvoidingView></Modal>;
 }
+
+function WheelTimePicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const hour = Math.floor(value / 60) % 24;
+  const minute = value % 60;
+  return <View style={s.timePicker}><View style={s.wheelColumns}><TimeWheel label="Hora" max={23} selected={hour} onChange={(next) => onChange(next * 60 + minute)} /><Text style={s.timeSeparator}>:</Text><TimeWheel label="Minuto" max={59} selected={minute} onChange={(next) => onChange(hour * 60 + next)} /></View><View style={s.timeReadout}><Ionicons name="time-outline" size={18} color={C.accent} /><Text style={s.timeReadoutText}>{minutesToTime(value)}</Text></View></View>;
+}
+
+function TimeWheel({ label, max, selected, onChange }: { label: string; max: number; selected: number; onChange: (value: number) => void }) {
+  const scrollRef = useRef<any>(null);
+  const values = Array.from({ length: max + 1 }, (_, index) => index);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: selected * TIME_ROW_HEIGHT, animated: false });
+  }, []);
+  function select(value: number) {
+    onChange(value);
+    scrollRef.current?.scrollTo({ y: value * TIME_ROW_HEIGHT, animated: true });
+  }
+  function finishScroll(event: any) {
+    const offset = Number(event.nativeEvent.contentOffset?.y || 0);
+    const next = Math.max(0, Math.min(max, Math.round(offset / TIME_ROW_HEIGHT)));
+    onChange(next);
+  }
+  return <View style={s.wheelColumn}><Text style={s.wheelLabel}>{label}</Text><View style={s.wheelWindow}><ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} snapToInterval={TIME_ROW_HEIGHT} decelerationRate="fast" scrollEventThrottle={16} contentContainerStyle={s.wheelContent} onScrollEndDrag={finishScroll} onMomentumScrollEnd={finishScroll}>{values.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={`${label} ${String(item).padStart(2, "0")}`} accessibilityState={{ selected: item === selected }} onPress={() => select(item)} style={({ pressed }) => [s.wheelRow, item === selected && s.wheelRowSelected, pressed && { opacity: 0.68 }]}><Text style={[s.wheelValue, item === selected && s.wheelValueSelected]}>{String(item).padStart(2, "0")}</Text></Pressable>)}</ScrollView><View pointerEvents="none" style={s.wheelSelection} /></View></View>;
+}
+
+const TIME_ROW_HEIGHT = 44;
 
 function BatchModal({ visible, value, setValue, onCancel, onSave }: { visible: boolean; value: string; setValue: (value: string) => void; onCancel: () => void; onSave: () => void | Promise<void> }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalBackdrop}><View style={s.modalCard}><Text style={ui.h2}>Quantidade personalizada</Text><Text style={ui.body}>Escolha entre 1 e 100 arquivos por revisão.</Text><TextInput accessibilityLabel="Quantidade de arquivos" value={value} onChangeText={setValue} style={ui.input} keyboardType="number-pad" selectTextOnFocus /><View style={s.modalActions}><Button label="Cancelar" secondary onPress={onCancel} /><Button label="Salvar quantidade" onPress={onSave} /></View></View></KeyboardAvoidingView></Modal>;
@@ -637,16 +668,12 @@ const s = StyleSheet.create({
   stat: { flex: 1, minHeight: 92, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 12, padding: 13, gap: 4 },
   statValue: { color: C.ink, fontSize: 21, lineHeight: 26, fontWeight: "700" },
   centerCard: { minHeight: 130, borderRadius: 14, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, alignItems: "center", justifyContent: "center", gap: 10, padding: 18 },
-  linkButton: { minHeight: 38, justifyContent: "center", paddingHorizontal: 5 },
-  linkText: { color: C.accent, fontSize: 13, fontWeight: "800" },
-  fileRow: { minHeight: 76, paddingVertical: 9, gap: 10, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: C.border },
-  fileRowSelected: { backgroundColor: C.surfaceWarm },
-  thumb: { width: 52, height: 52, borderRadius: 9, backgroundColor: C.border },
-  thumbIcon: { width: 52, height: 52, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: C.accentPale },
-  fileInfo: { flex: 1, minWidth: 0, gap: 2 },
+  reviewMediaCard: { overflow: "hidden", backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 14 },
+  mediaMeta: { padding: 16, gap: 4 },
+  reviewActions: { flexDirection: "row", gap: 9 },
+  actionButtonWrap: { flex: 1 },
   fileName: { color: C.ink, fontSize: 15, lineHeight: 20, fontWeight: "700" },
   filePath: { color: C.muted, fontSize: 12, lineHeight: 17 },
-  reviewFooter: { gap: 10 },
   deletingLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   quietNote: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 4 },
   infoBox: { backgroundColor: C.surfaceWarm, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 9 },
@@ -665,5 +692,18 @@ const s = StyleSheet.create({
   modalBackdrop: { flex: 1, padding: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(45,41,38,0.35)" },
   modalCard: { width: "100%", maxWidth: 460, borderRadius: 16, padding: 18, gap: 14, backgroundColor: C.surface },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" },
-  errorText: { color: C.danger, fontSize: 13, lineHeight: 18 },
+  timePicker: { gap: 12 },
+  wheelColumns: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  wheelColumn: { flex: 1, minWidth: 0, gap: 6 },
+  wheelLabel: { color: C.muted, fontSize: 11, lineHeight: 16, fontWeight: "800", letterSpacing: 1.1, textAlign: "center", textTransform: "uppercase" },
+  wheelWindow: { height: TIME_ROW_HEIGHT * 3, overflow: "hidden", borderRadius: 12, backgroundColor: C.surfaceWarm, borderWidth: 1, borderColor: C.border, position: "relative" },
+  wheelContent: { paddingVertical: TIME_ROW_HEIGHT },
+  wheelRow: { height: TIME_ROW_HEIGHT, alignItems: "center", justifyContent: "center", borderRadius: 9 },
+  wheelRowSelected: { backgroundColor: C.accentPale },
+  wheelValue: { color: C.muted, fontSize: 18, lineHeight: 24, fontWeight: "600" },
+  wheelValueSelected: { color: C.accentText, fontSize: 22, fontWeight: "800" },
+  wheelSelection: { position: "absolute", left: 5, right: 5, top: TIME_ROW_HEIGHT, height: TIME_ROW_HEIGHT, borderWidth: 1, borderColor: C.accentSoft, borderRadius: 9 },
+  timeSeparator: { color: C.ink, fontSize: 24, lineHeight: 30, fontWeight: "700", marginTop: 22 },
+  timeReadout: { alignSelf: "center", minHeight: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: C.accentPale, flexDirection: "row", alignItems: "center", gap: 7 },
+  timeReadoutText: { color: C.accentText, fontSize: 16, lineHeight: 21, fontWeight: "800" },
 });

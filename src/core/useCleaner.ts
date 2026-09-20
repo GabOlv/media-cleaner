@@ -184,10 +184,11 @@ export function useCleaner() {
     }
   }
 
-  async function completeReview(selectedIds: string[]) {
+  async function completeReview(selectedIds: string[], handledIds?: string[]) {
     if (lock.current || !state.current || pending.current) return;
-    const selected = files.filter((file) => selectedIds.includes(file.id));
-    const ignored = files.filter((file) => !selectedIds.includes(file.id));
+    const handled = new Set(handledIds ?? files.map((file) => file.id));
+    const selected = files.filter((file) => handled.has(file.id) && selectedIds.includes(file.id));
+    const ignored = files.filter((file) => handled.has(file.id) && !selectedIds.includes(file.id));
     lock.current = true;
     setBusy(true);
     setDeleting(selected.length > 0);
@@ -211,23 +212,27 @@ export function useCleaner() {
         }
       }
       for (const file of ignored) next = record(next, file, false);
+      const failedIds = new Set(failed.map((file) => file.id));
+      const remaining = files.filter((file) => !handled.has(file.id) || failedIds.has(file.id));
       try {
         await commit(next);
       } catch (error) {
         pending.current = next;
         publish(next);
         setUnsaved(true);
-        setFiles(failed);
+        setFiles(remaining);
         throw error;
       }
-      setFiles(failed);
+      setFiles(remaining);
       setSearched(true);
       if (failed.length) {
         setMessage(firstError || `${failed.length} arquivo(s) não foram excluídos e continuam na lista.`);
       } else if (deletedCount) {
         setMessage(`${deletedCount} arquivo(s) excluído(s).`);
-      } else {
+      } else if (!handledIds) {
         setMessage(`${ignored.length} arquivo(s) ignorado(s) nesta revisão.`);
+      } else {
+        setMessage("");
       }
     } catch (error) {
       if (pending.current) setMessage("A operação foi concluída, mas o progresso não foi salvo. Toque em Salvar novamente.");

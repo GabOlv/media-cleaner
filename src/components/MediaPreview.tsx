@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -7,9 +7,11 @@ import { MediaFile } from "../core/model";
 import { Button, palette as C, ui } from "./ui";
 export function MediaPreview({ file }: { file: MediaFile }) {
   const [failed, setFailed] = useState(false);
+  const { width } = useWindowDimensions();
+  const previewHeight = Math.min(300, Math.max(190, width * 0.58));
   if (file.demo)
     return (
-      <View style={s.demoPhoto}>
+      <View style={[s.demoPhoto, { height: previewHeight }]}>
         <View style={s.sun} />
         <View style={s.hillBack} />
         <View style={s.hill} />
@@ -19,8 +21,8 @@ export function MediaPreview({ file }: { file: MediaFile }) {
         </View>
       </View>
     );
-  if (file.kind === "video") return <VideoPreview uri={file.uri} />;
-  if (file.kind === "audio") return <AudioPreview uri={file.uri} />;
+  if (file.kind === "video") return <VideoPreview uri={file.uri} height={previewHeight} />;
+  if (file.kind === "audio") return <AudioPreview uri={file.uri} height={previewHeight} />;
   return (
     <View style={{ backgroundColor: "#E8EDE6" }}>
       {failed ? (
@@ -35,7 +37,7 @@ export function MediaPreview({ file }: { file: MediaFile }) {
         <Image
           accessibilityLabel={`Prévia de ${file.filename}`}
           source={{ uri: file.uri }}
-          style={{ width: "100%", height: 300 }}
+          style={{ width: "100%", height: previewHeight }}
           resizeMode="contain"
           onError={() => setFailed(true)}
         />
@@ -43,22 +45,22 @@ export function MediaPreview({ file }: { file: MediaFile }) {
     </View>
   );
 }
-function VideoPreview({ uri }: { uri: string }) {
+function VideoPreview({ uri, height }: { uri: string; height: number }) {
   const player = useVideoPlayer(uri);
   return (
     <VideoView
       player={player}
       nativeControls
-      style={{ width: "100%", height: 300 }}
+      style={{ width: "100%", height }}
       contentFit="contain"
     />
   );
 }
-function AudioPreview({ uri }: { uri: string }) {
+function AudioPreview({ uri, height }: { uri: string; height: number }) {
   const player = useAudioPlayer(uri),
     status = useAudioPlayerStatus(player);
   return (
-    <View style={s.fallback}>
+    <View style={[s.fallback, { minHeight: height }]}>
       <Ionicons name="musical-notes-outline" size={52} color={C.accent} />
       <Text style={ui.h2}>Dê uma escutadinha</Text>
       <Button

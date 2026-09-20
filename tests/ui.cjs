@@ -42,6 +42,7 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     const body = await page.locator("body").innerText();
     assert.doesNotMatch(body, /\b(Bipo|XP|pontos|nível|missão|conquista|robô|robot)\b/i);
     assert.equal(await page.getByRole("img", { name: /bipo|mascot|robô|robot/i }).count(), 0);
+    assert.equal(await page.getByText("CARROTCLEANER", { exact: true }).count(), 0);
   }
 
   try {
@@ -60,16 +61,22 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     await page.getByRole("button", { name: /Abrir demonstração/ }).click();
     await tab("Revisão").click();
     await button("Buscar arquivos").click();
-    await page.getByRole("checkbox", { name: /Uma foto do passeio/ }).first().waitFor();
+    await page.getByText("Uma foto do passeio.jpg", { exact: true }).waitFor();
     await assertCleanBranding();
     await assertLayout();
     await capture("review-320");
 
-    const firstFile = page.getByRole("checkbox", { name: /Uma foto do passeio/ }).first();
-    await firstFile.click();
-    await button("Excluir selecionados").click();
-    await page.getByText("Excluir 9 arquivos?", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Excluir selecionados", exact: true }).last().click();
+    await page.getByRole("button", { name: /Manter/ }).click();
+    await page.getByText("Print que ficou para depois.png", { exact: true }).waitFor();
+    await page.getByRole("button", { name: /^.*Excluir$/ }).click();
+    await page.getByText("Excluir este arquivo?", { exact: true }).waitFor();
+    await page.getByRole("button", { name: /Excluir arquivo/ }).click();
+    await page.getByText("1 arquivo(s) excluído(s).", { exact: true }).waitFor();
+    for (let index = 0; index < 8; index++) {
+      await page.getByRole("button", { name: /^.*Excluir$/ }).click();
+      await page.getByText("Excluir este arquivo?", { exact: true }).waitFor();
+      await page.getByRole("button", { name: /Excluir arquivo/ }).click();
+    }
     await page.getByText("Revisão concluída", { exact: true }).waitFor();
     const afterDeletion = await journal();
     assert.equal(afterDeletion.version, 3);
@@ -90,10 +97,8 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     await page.getByRole("switch", { name: "Ativar lembretes" }).click();
     await page.getByRole("radio", { name: "2 vezes", exact: true }).click();
     await page.getByRole("button", { name: /Lembrete 1/ }).click();
-    await page.getByRole("textbox", { name: "Horário" }).fill("25:99");
-    await button("Salvar horário").click();
-    await page.getByText("Use um horário como 08:30 ou 20:00.", { exact: true }).waitFor();
-    await page.getByRole("textbox", { name: "Horário" }).fill("08:30");
+    await page.getByRole("button", { name: "Hora 08", exact: true }).click();
+    await page.getByRole("button", { name: "Minuto 30", exact: true }).click();
     await button("Salvar horário").click();
     await page.waitForFunction(() => {
       const value = localStorage.getItem("@media_cleaner_journal_v3");
@@ -131,7 +136,7 @@ const artifacts = path.resolve(__dirname, "../artifacts");
     }
     await assertCleanBranding();
     assert.deepEqual(errors, [], `Browser runtime/console errors: ${JSON.stringify(errors)}`);
-    console.log("PASS: minimalist branding; 320/390/tablet layouts; default selection and keep flow; deletion confirmation; ignored-list reset; reminder count/time modal; protected-folder navigation; zero browser errors.");
+    console.log("PASS: minimalist branding; one-at-a-time media review; animated deletion feedback; 320/390/tablet layouts; ignored-list reset; alarm-style reminder picker; protected-folder navigation; zero browser errors.");
   } catch (error) {
     await capture("failure").catch(() => {});
     console.error("Browser errors:", errors);
