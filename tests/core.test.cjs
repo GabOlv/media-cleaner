@@ -130,6 +130,24 @@ test("scan paginates beyond protected and reviewed pages to fill the daily batch
   assert.equal(result.files[0].bytes, 42);
 });
 
+test("queued assets are revalidated by ID instead of rescanning the whole library", async () => {
+  let pages = 0;
+  const lib = library({
+    getAssetsAsync: async () => { pages++; return { assets: [], hasNextPage: false }; },
+    getAssetInfoAsync: async (id) => id === "gone" ? null : asset(id, `file:///storage/emulated/0/DCIM/${id}.jpg`),
+  });
+  const result = await lib.loadQueued(model.freshJournal().preferences, ["kept", "gone"]);
+  assert.deepEqual(result.files.map((file) => file.id), ["kept"]);
+  assert.deepEqual(result.missing, ["gone"]);
+  assert.equal(pages, 0);
+});
+
+test("pre-delete existence checks distinguish missing assets from a live asset", async () => {
+  const lib = library({ getAssetInfoAsync: async (id) => id === "gone" ? null : {} });
+  assert.equal(await lib.exists({ id: "live" }), true);
+  assert.equal(await lib.exists({ id: "gone" }), false);
+});
+
 test("the scanner keeps real Android and Music paths instead of guessing albums", async () => {
   const lib = library({
     getAssetsAsync: async () => ({
@@ -284,6 +302,29 @@ test("reminders schedule one, two, or three owned daily notifications and preser
   scheduled = [];
   assert.equal(await reminders.schedule({ ...preferences, reminder: false }), true);
   assert.deepEqual(scheduled, []);
+});
+
+test("reminder sync reports revoked notification permission and uses short direct copy", async () => {
+  let scheduled = 0;
+  let lastRequest;
+  const n = {
+    AndroidImportance: { DEFAULT: 3 },
+    SchedulableTriggerInputTypes: { DAILY: "daily" },
+    setNotificationChannelAsync: async () => {},
+    getAllScheduledNotificationsAsync: async () => [],
+    getPermissionsAsync: async () => ({ granted: false, canAskAgain: false }),
+    scheduleNotificationAsync: async (value) => { scheduled++; lastRequest = value; return value; },
+  };
+  const reminders = load("reminders", { "react-native": { Platform: { OS: "android" } }, "expo-notifications": n });
+  const denied = await reminders.syncReminders({ ...model.freshJournal().preferences, reminder: true });
+  assert.deepEqual(denied, { ok: false, permissionGranted: false, scheduled: 0 });
+  assert.equal(scheduled, 0);
+
+  n.getPermissionsAsync = async () => ({ granted: true });
+  await reminders.syncReminders({ ...model.freshJournal().preferences, reminder: true });
+  assert.equal(scheduled, 1);
+  assert.equal(lastRequest.content.title, "Hora de limpar o celular");
+  assert.equal(lastRequest.content.body, "Abra o Dustio para revisar sua lista.");
 });
 
 test("web reminders stay disabled without trying to load native notifications", async () => {

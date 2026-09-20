@@ -49,7 +49,7 @@ export async function permission(
   }
 }
 async function resolve(asset: Library.Asset): Promise<MediaFile> {
-  let uri = asset.uri;
+  let uri = asset.uri || (asset as any).localUri || "";
   if (!uri.startsWith("file://")) {
     try {
       uri =
@@ -141,36 +141,32 @@ export async function loadQueued(
   if (!(await permission(false, preferences.types)))
     throw new Error("Permita o acesso às mídias para continuar a revisão.");
 
-  const wanted = new Set(ids);
-  const found = new Map<string, MediaFile>();
-  let after: string | undefined;
+  const files = new Map<string, MediaFile>();
   let unknown = 0;
-  do {
+  for (const id of ids) {
     if (signal?.aborted) throw new Error("Busca cancelada.");
-    const page = await Library.getAssetsAsync({
-      first: 200,
-      after,
-      mediaType: preferences.types,
-      sortBy: [[Library.SortBy.creationTime, true]],
-    });
-    for (const asset of page.assets) {
-      if (signal?.aborted) throw new Error("Busca cancelada.");
-      if (!wanted.has(asset.id) || found.has(asset.id)) continue;
+    try {
+      const info = await Library.getAssetInfoAsync(id);
+      if (info === null || info === undefined) continue;
+      const asset = { ...(info as any), id, uri: (info as any).uri || (info as any).localUri || "" } as Library.Asset;
       const file = await resolve(asset);
       if (!file.path && preferences.protectedPaths.length) {
         unknown++;
         continue;
       }
       if (isProtected(file.path, preferences.protectedPaths)) continue;
-      found.set(file.id, await addSize(file));
+      if (!preferences.types.includes(file.kind)) continue;
+      files.set(id, await addSize(file));
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      if (/not found|does not exist|no asset|unknown asset|deleted/i.test(detail)) continue;
+      throw cause;
     }
-    if (found.size >= wanted.size || !page.hasNextPage || page.endCursor === after) break;
-    after = page.endCursor;
-  } while (after);
+  }
 
   return {
-    files: ids.map((id) => found.get(id)).filter((file): file is MediaFile => !!file),
-    missing: ids.filter((id) => !found.has(id)),
+    files: ids.map((id) => files.get(id)).filter((file): file is MediaFile => !!file),
+    missing: ids.filter((id) => !files.has(id)),
     unknown,
   };
 }
