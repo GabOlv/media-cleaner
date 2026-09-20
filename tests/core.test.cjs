@@ -132,20 +132,31 @@ test("scan paginates beyond protected and reviewed pages to fill the daily batch
 
 test("queued assets are revalidated by ID instead of rescanning the whole library", async () => {
   let pages = 0;
+  let infoCalls = 0;
   const lib = library({
-    getAssetsAsync: async () => { pages++; return { assets: [], hasNextPage: false }; },
-    getAssetInfoAsync: async (id) => id === "gone" ? null : asset(id, `file:///storage/emulated/0/DCIM/${id}.jpg`),
+    getAssetsAsync: async () => { pages++; return { assets: [asset("kept")], hasNextPage: false }; },
+    getAssetInfoAsync: async () => { infoCalls++; throw Error("EXIF lookup should not be used"); },
   });
   const result = await lib.loadQueued(model.freshJournal().preferences, ["kept", "gone"]);
   assert.deepEqual(result.files.map((file) => file.id), ["kept"]);
   assert.deepEqual(result.missing, ["gone"]);
-  assert.equal(pages, 0);
+  assert.equal(pages, 1);
+  assert.equal(infoCalls, 0);
 });
 
 test("pre-delete existence checks distinguish missing assets from a live asset", async () => {
-  const lib = library({ getAssetInfoAsync: async (id) => id === "gone" ? null : {} });
+  let infoCalls = 0;
+  const lib = library({
+    getAssetsAsync: async () => ({ assets: [asset("live")], hasNextPage: false }),
+    getAssetInfoAsync: async () => { infoCalls++; throw Error("EXIF lookup should not be used"); },
+  });
   assert.equal(await lib.exists({ id: "live" }), true);
-  assert.equal(await lib.exists({ id: "gone" }), false);
+  const gone = library({
+    getAssetsAsync: async () => ({ assets: [], hasNextPage: false }),
+    getAssetInfoAsync: async () => { infoCalls++; throw Error("EXIF lookup should not be used"); },
+  });
+  assert.equal(await gone.exists({ id: "gone" }), false);
+  assert.equal(infoCalls, 0);
 });
 
 test("the scanner keeps real Android and Music paths instead of guessing albums", async () => {

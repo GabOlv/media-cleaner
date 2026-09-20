@@ -281,7 +281,7 @@ function CleanerApp() {
       <ConfirmDialog
         visible={confirmDeleteId !== null}
         title="Excluir este arquivo?"
-        text="O arquivo será enviado para a lixeira do celular, quando o sistema oferecer esse recurso. Essa escolha não poderá ser desfeita pelo Dustio."
+        text="Essa escolha não poderá ser desfeita pelo Dustio."
         confirmLabel="Excluir arquivo"
         danger
         busy={app.deleting || app.busy}

@@ -49,19 +49,10 @@ export async function permission(
   }
 }
 async function resolve(asset: Library.Asset): Promise<MediaFile> {
-  let uri = asset.uri || (asset as any).localUri || "";
-  if (!uri.startsWith("file://")) {
-    try {
-      uri =
-        (
-          await Library.getAssetInfoAsync(asset, {
-            shouldDownloadFromNetwork: false,
-          })
-        ).localUri || uri;
-    } catch {
-      /* Unknown path is handled conservatively by the scanner. */
-    }
-  }
+  // Keep the URI returned by getAssetsAsync. Resolving full asset info reads
+  // EXIF metadata on Android and requires ACCESS_MEDIA_LOCATION, which Dustio
+  // does not need for review or deletion.
+  const uri = asset.uri || (asset as any).localUri || "";
   const path = uri.startsWith("file://")
     ? normalizePath(uri.slice(0, uri.lastIndexOf("/")))
     : undefined;
@@ -130,7 +121,7 @@ export async function scan(
   return { files: await Promise.all(selected.map(addSize)), unknown };
 }
 
-/** Rehydrates the small persisted daily queue without scanning the whole library. */
+/** Rehydrates the small persisted daily queue without requesting EXIF metadata. */
 export async function loadQueued(
   preferences: Preferences,
   ids: string[],
@@ -141,14 +132,20 @@ export async function loadQueued(
   if (!(await permission(false, preferences.types)))
     throw new Error("Permita o acesso às mídias para continuar a revisão.");
 
+  const wanted = new Set(ids);
   const files = new Map<string, MediaFile>();
   let unknown = 0;
-  for (const id of ids) {
+  let after: string | undefined;
+  do {
     if (signal?.aborted) throw new Error("Busca cancelada.");
-    try {
-      const info = await Library.getAssetInfoAsync(id);
-      if (info === null || info === undefined) continue;
-      const asset = { ...(info as any), id, uri: (info as any).uri || (info as any).localUri || "" } as Library.Asset;
+    const page = await Library.getAssetsAsync({
+      first: 200,
+      after,
+      mediaType: preferences.types,
+      sortBy: [[Library.SortBy.creationTime, true]],
+    });
+    for (const asset of page.assets) {
+      if (!wanted.has(asset.id) || files.has(asset.id)) continue;
       const file = await resolve(asset);
       if (!file.path && preferences.protectedPaths.length) {
         unknown++;
@@ -156,13 +153,11 @@ export async function loadQueued(
       }
       if (isProtected(file.path, preferences.protectedPaths)) continue;
       if (!preferences.types.includes(file.kind)) continue;
-      files.set(id, await addSize(file));
-    } catch (cause) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
-      if (/not found|does not exist|no asset|unknown asset|deleted/i.test(detail)) continue;
-      throw cause;
+      files.set(asset.id, await addSize(file));
     }
-  }
+    if (files.size >= wanted.size || !page.hasNextPage || page.endCursor === after) break;
+    after = page.endCursor;
+  } while (after);
 
   return {
     files: ids.map((id) => files.get(id)).filter((file): file is MediaFile => !!file),
@@ -175,8 +170,19 @@ export async function loadQueued(
 export async function exists(file: MediaFile): Promise<boolean> {
   if (file.demo || Platform.OS === "web") return true;
   try {
-    const info = await Library.getAssetInfoAsync(file.id);
-    return info !== null && info !== undefined;
+    let after: string | undefined;
+    do {
+      const page = await Library.getAssetsAsync({
+        first: 200,
+        after,
+        mediaType: [file.kind],
+        sortBy: [[Library.SortBy.creationTime, true]],
+      });
+      if (page.assets.some((asset) => asset.id === file.id)) return true;
+      if (!page.hasNextPage || page.endCursor === after) return false;
+      after = page.endCursor;
+    } while (after);
+    return false;
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     if (/not found|does not exist|no asset|unknown asset|deleted/i.test(detail)) return false;

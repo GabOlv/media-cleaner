@@ -268,6 +268,20 @@ export function useCleaner() {
     abort.current = controller;
     try {
       const next = today(state.current);
+      if (!demoRef.current) {
+        const unavailable = libraryUnavailable(next.preferences.types);
+        if (unavailable) {
+          setMessage(unavailable);
+          return;
+        }
+        let allowed = await permission(false, next.preferences.types);
+        if (!allowed) allowed = await permission(true, next.preferences.types);
+        setGranted(allowed);
+        if (!allowed) {
+          setMessage("Permita o acesso às mídias para começar a revisão.");
+          return;
+        }
+      }
       const result = await refreshMission(next, controller.signal);
       if (controller.signal.aborted) return;
       await commit(result.journal);
